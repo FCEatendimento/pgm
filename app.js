@@ -38,6 +38,7 @@ const IC = {
   externo: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
   doc: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/>',
   email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+  junta: '<path d="M12 3v17M8 20h8"/><path d="M4 7h16"/><path d="M6 7l-3 6a3 3 0 0 0 6 0z"/><path d="M18 7l-3 6a3 3 0 0 0 6 0z"/>',
   tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>'
 };
 const LINKS = [
@@ -59,7 +60,8 @@ const S = {
   dados: LS.get('dados', null), carregadoEm: 0,
   f: Object.assign({ sit: 'abertos', trib: '', marca: '', q: '' }, LS.get('filtros', {})),
   ft: 'abertas',
-  vis: LS.get('vis', 'lista'), ord: LS.get('ord', { c: 'fim', d: 1 })
+  vis: LS.get('vis', 'lista'), ord: LS.get('ord', { c: 'fim', d: 1 }),
+  jt: LS.get('jt', 'relatoria'), jf: 'abertos', jq: '', jb: { q: '', tributo: '', resultado: '', ano: '' }, jr: null
 };
 
 async function api(acao, dados) {
@@ -142,7 +144,8 @@ async function sair(expirou) {
 // ---------- dados ----------
 async function carregar(forcar) {
   if (!forcar && S.dados && Date.now() - S.carregadoEm < 45000) return S.dados;
-  const d = await api('listar', { filtro: 'todos' });
+  const [d, j] = await Promise.all([api('listar', { filtro: 'todos' }), api('jrf_listar').catch(() => null)]);
+  d.jrf = j || (S.dados && S.dados.jrf) || { processos: [], sessoes: [], juris_total: 0 };
   S.dados = d; S.carregadoEm = Date.now(); LS.set('dados', d);
   return d;
 }
@@ -162,7 +165,8 @@ const ROTAS = [
   { k: 'inicio', t: 'Início', ic: 'casa' },
   { k: 'prazos', t: 'Prazos', ic: 'prazo' },
   { k: 'tarefas', t: 'Tarefas', ic: 'tarefa' },
-  { k: 'memorandos', t: 'Memorandos', ic: 'memo' }
+  { k: 'memorandos', t: 'Memorandos', tc: 'Memos', ic: 'memo' },
+  { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' }
 ];
 function iniciarApp() {
   const eu = S.eu || {};
@@ -172,12 +176,12 @@ function iniciarApp() {
     '<div class="nav-tit">Acesso rápido</div><nav class="nav">' + LINKS.map((l) => '<a href="' + l.url + '" target="_blank" rel="noopener" title="' + esc(l.d) + '">' + ic(l.ic) + '<span>' + esc(l.t) + '</span>' + ic('externo', 's ext') + '</a>').join('') + '</nav>' +
     '<div class="rodape"><div class="av">' + av + '</div><div style="min-width:0"><div class="n">' + esc(eu.nome || '') + '</div><div class="e">' + esc(eu.email || '') + '</div></div><button title="Sair" id="bsair">' + ic('sair') + '</button></div></aside>' +
     '<main class="main"><header class="topo"><h1 id="titulo"></h1><div class="acoes"><button class="btn fant ico" id="btema" title="Alternar tema claro/escuro"></button><button class="btn fant ico" id="batual" title="Atualizar">' + ic('atual') + '</button><button class="btn pri sm" id="bnovo">' + ic('mais2', 's') + '<span>Novo prazo</span></button></div></header><div class="conteudo" id="conteudo"></div></main>' +
-    '<nav class="tabbar">' + ROTAS.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + r.t + '</span><span class="bdg-slot"></span></a>').join('') + '<a href="#/mais" data-r="mais">' + ic('mais') + '<span>Mais</span></a></nav>';
+    '<nav class="tabbar">' + ROTAS.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + (r.tc || r.t) + '</span><span class="bdg-slot"></span></a>').join('') + '<a href="#/mais" data-r="mais">' + ic('mais') + '<span>Mais</span></a></nav>';
   $('#bsair').onclick = () => sair(false);
   $('#batual').onclick = () => rota(true);
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
-  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : editarPrazo());
+  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : editarPrazo());
   if (!location.hash || location.hash === '#/') location.hash = '#/inicio';
   rota();
 }
@@ -187,14 +191,15 @@ function badges() {
   const tar = tarefas().filter((t) => t.status === 'ABERTA' && t.vencimento && t.vencimento <= h).length;
   const mem = prazos().filter((p) => aberto(p) && p.memo_status === 'A_ENVIAR').length;
   const set = (k, n, r) => $$('a[data-r="' + k + '"] .bdg-slot').forEach((e) => { e.innerHTML = n ? '<span class="bdg' + (r ? ' r' : '') + '">' + n + '</span>' : ''; });
-  set('prazos', urg, true); set('tarefas', tar, true); set('memorandos', mem, false);
+  const jv = ((S.dados && S.dados.jrf && S.dados.jrf.processos) || []).filter((p) => !['JULGADO', 'ARQUIVADO'].includes(p.status) && p.prazo_voto && p.prazo_voto <= addDias(h, 3)).length;
+  set('prazos', urg, true); set('tarefas', tar, true); set('memorandos', mem, false); set('junta', jv, true);
 }
 let rodando = 0;
 async function rota(forcar) {
   const [k, arg] = (location.hash.replace(/^#\//, '') || 'inicio').split('/');
   const v = VIEWS[k] ? k : 'inicio';
   $$('a[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === v));
-  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : 'Novo prazo';
+  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : 'Novo prazo';
   $('#conteudo').classList.remove('largo');
   const meu = ++rodando;
   if (!S.dados) $('#conteudo').innerHTML = '<div class="carregando"><div class="spin"></div></div>';
@@ -266,9 +271,11 @@ VIEWS.inicio = function () {
     (ab.slice(0, 8).map(itemPrazo).join('') || vazio('Nenhum prazo aberto.')) + '</div></div>' +
     '<div class="card"><div class="cab"><h2>Tarefas</h2><div class="dir"><a class="btn fant sm" href="#/tarefas">Ver todas</a></div></div><div class="lista" id="l2">' +
     (tab.slice(0, 7).map(itemTarefa).join('') || vazio('Nenhuma tarefa aberta.')) + '</div></div></div>' +
-    '<div class="rodape-app">TJRS 1º e 2º graus · TRF4 1º e 2º graus</div>';
+    '<div class="sec-tit">Junta de Recursos Fiscais <a class="btn fant sm" href="#/junta" style="margin-left:auto">Abrir</a></div>' + cardProxSessao() +
+    (() => { const l = jProc().filter(jrfAberto).slice(0, 5); return l.length ? '<div class="card" style="margin-top:12px"><div class="lista">' + l.map(itemJrf).join('') + '</div></div>' : ''; })() +
+    '<div class="rodape-app">TJRS 1º e 2º graus · TRF4 1º e 2º graus · Junta de Recursos Fiscais</div>';
   $$('[data-go]').forEach((e) => { e.onclick = () => { const g = e.dataset.go; if (g === 'memo') { location.hash = '#/memorandos'; return; } Object.assign(S.f, { sit: 'abertos', trib: '', marca: g, q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; }; });
-  ligarListas($('#conteudo'));
+  ligarListas($('#conteudo')); ligarJunta($('#conteudo'));
 };
 VIEWS.prazos = function () {
   titulo('Prazos');
@@ -393,6 +400,222 @@ function aplicarTema(t) {
   const m = $('meta[name="theme-color"]'); if (m) m.content = temaEfetivo() === 'escuro' ? '#0A111D' : '#0E1A2B';
 }
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!document.documentElement.dataset.tema) aplicarTema('auto'); }); } catch (e) {}
+
+// ---------- Junta de Recursos Fiscais ----------
+const JST = { EM_ANALISE: 'Em análise', VOTO_PRONTO: 'Voto pronto', PAUTADO: 'Pautado', VISTA: 'Pedido de vista', DILIGENCIA: 'Em diligência', JULGADO: 'Julgado', ARQUIVADO: 'Arquivado' };
+const JRES = { PROVIDO: 'Provido', PARCIAL: 'Parcialmente provido', NAO_PROVIDO: 'Não provido', NAO_CONHECIDO: 'Não conhecido', DILIGENCIA: 'Convertido em diligência', OUTRO: 'Outro' };
+const TRIBUTOS = ['IPTU', 'ISSQN', 'ITBI', 'Taxa de Coleta de Lixo', 'Taxa de Licença e Fiscalização', 'Contribuição de Melhoria', 'COSIP', 'Multa por infração', 'Outros'];
+const jrfAberto = (p) => !['JULGADO', 'ARQUIVADO'].includes(p.status);
+const jrf = () => (S.dados && S.dados.jrf) || { processos: [], sessoes: [], juris_total: 0 };
+const jProc = () => jrf().processos || [];
+const jSess = () => jrf().sessoes || [];
+const sessao = (id) => jSess().find((x) => x.id === id);
+const resCls = (r) => r === 'PROVIDO' ? 'ok' : r === 'NAO_PROVIDO' ? 'bad' : r === 'PARCIAL' ? 'ouro' : r ? 'info' : '';
+const moeda = (v) => v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const marcar = (t) => esc(t).replace(/\[\[/g, '<mark>').replace(/\]\]/g, '</mark>');
+function proximaSessao() { const h = hoje(); return jSess().filter((x) => x.data >= h).sort((a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || '')))[0]; }
+function textoSessao(x, curto) { if (!x) return ''; return fdata(x.data, true) + (x.hora ? ' às ' + esc(x.hora) : '') + (curto ? '' : ' · ' + (x.tipo === 'EXTRAORDINARIA' ? 'extraordinária' : 'ordinária')); }
+function cardProxSessao() {
+  const x = proximaSessao();
+  if (!x) return '<div class="card jrf-prox vaz"><div class="ico">' + ic('hoje', 's') + '</div><div><div class="rot">Próxima sessão de julgamento</div><div class="t">Nenhuma sessão futura cadastrada</div></div><button class="btn sm" data-nsess>' + ic('mais2', 's') + 'Cadastrar sessão</button></div>';
+  const n = dias(x.data), meus = jProc().filter((p) => p.sessao_id === x.id);
+  return '<div class="card jrf-prox clic" data-s="' + esc(x.id) + '"><div class="ico">' + ic('hoje', 's') + '</div><div style="min-width:0"><div class="rot">Próxima sessão de julgamento</div><div class="t">' + textoSessao(x) + '</div>' +
+    '<div class="d">' + (x.local ? esc(x.local) + ' · ' : '') + (meus.length ? meus.length + ' processo(s) sob sua relatoria' : 'nenhum processo seu pautado') + '</div></div><span class="chip ' + (urg(n) || 'nav') + '">' + rel(n) + '</span></div>';
+}
+function itemJrf(p) {
+  const aberta = jrfAberto(p), n = dias(p.prazo_voto), u = aberta ? urg(n) : 'ok', x = sessao(p.sessao_id);
+  const tags = ['<span class="chip ' + (p.status === 'JULGADO' ? 'ok' : p.status === 'PAUTADO' ? 'info' : p.status === 'VOTO_PRONTO' ? 'ouro' : '') + '">' + esc(JST[p.status] || p.status) + '</span>'];
+  if (p.tributo) tags.unshift('<span class="chip nav">' + esc(p.tributo) + '</span>');
+  if (x) tags.push('<span class="chip">Sessão ' + fdata(x.data) + '</span>');
+  if (p.resultado) tags.push('<span class="chip ' + resCls(p.resultado) + '">' + esc(JRES[p.resultado]) + '</span>');
+  if (p.valor) tags.push('<span class="chip">' + moeda(p.valor) + '</span>');
+  return '<div class="item clic" data-jp="' + esc(p.id) + '"><span class="dot ' + u + '"></span><div class="mid"><div class="t"><span class="num">' + esc(p.numero) + '</span>' + (p.recorrente ? '<span class="par"><span class="sep-p"> · </span>' + esc(p.recorrente) + '</span>' : '') + '</div>' +
+    '<div class="d">' + esc(p.materia || 'Matéria não informada') + '</div><div class="tags">' + tags.join('') + '</div></div>' +
+    '<div class="dir">' + (p.prazo_voto ? '<span class="pp mut">voto até</span><span class="data">' + fdata(p.prazo_voto) + '</span>' + (aberta ? '<span class="chip ' + (u || '') + '">' + rel(n) + '</span>' : '') : '<span class="pp mut">sem prazo</span>') + '</div></div>';
+}
+function itemSessao(x) {
+  const meus = jProc().filter((p) => p.sessao_id === x.id), n = dias(x.data), futura = x.data >= hoje();
+  const d = dt(x.data);
+  return '<div class="item clic" data-s="' + esc(x.id) + '"><div class="dia' + (futura ? '' : ' pass') + '"><b>' + String(d.getUTCDate()).padStart(2, '0') + '</b><span>' + d.toLocaleDateString('pt-BR', { month: 'short', timeZone: 'UTC' }).replace('.', '') + '</span></div>' +
+    '<div class="mid"><div class="t">' + esc(DS[d.getUTCDay()]) + (x.hora ? ', ' + esc(x.hora) : '') + ' · Sessão ' + (x.tipo === 'EXTRAORDINARIA' ? 'extraordinária' : 'ordinária') + '</div>' +
+    '<div class="d">' + esc(x.local || '') + (x.local && x.observacoes ? ' – ' : '') + esc(x.observacoes || '') + '</div>' +
+    (meus.length ? '<div class="tags">' + meus.map((p) => '<span class="chip ' + (p.status === 'JULGADO' ? 'ok' : 'info') + '">' + esc(p.numero) + '</span>').join('') + '</div>' : '') + '</div>' +
+    '<div class="dir">' + (futura ? '<span class="chip ' + (urg(n) || '') + '">' + rel(n) + '</span>' : '<span class="pp mut">realizada</span>') + '<span class="pp mut">' + meus.length + ' processo(s)</span></div></div>';
+}
+function ligarJunta(raiz) {
+  $$('[data-jp]', raiz).forEach((e) => { e.onclick = () => editarJrf(jProc().find((p) => p.id === e.dataset.jp)); });
+  $$('[data-s]', raiz).forEach((e) => { e.onclick = () => editarSessao(sessao(e.dataset.s)); });
+  $$('[data-nsess]', raiz).forEach((e) => { e.onclick = (ev) => { ev.stopPropagation(); editarSessao(); }; });
+  $$('[data-jj]', raiz).forEach((e) => { e.onclick = () => verJuris(e.dataset.jj); });
+}
+function novoJunta() { if (S.jt === 'sessoes') editarSessao(); else if (S.jt === 'juris') editarJuris(); else editarJrf(); }
+const rotuloNovoJunta = () => S.jt === 'sessoes' ? 'Nova sessão' : S.jt === 'juris' ? 'Nova decisão' : 'Novo processo';
+VIEWS.junta = function (arg) {
+  if (['relatoria', 'sessoes', 'juris'].includes(arg)) S.jt = arg;
+  S.jt = S.jt || 'relatoria'; LS.set('jt', S.jt);
+  titulo(window.innerWidth < 600 ? 'Junta (JRF)' : 'Junta de Recursos Fiscais');
+  $('#bnovo span').textContent = rotuloNovoJunta();
+  const abertos = jProc().filter(jrfAberto);
+  const seg = '<div class="seg jrf-abas" role="tablist">' + [['relatoria', window.innerWidth < 600 ? 'Relatoria' : 'Minha relatoria', abertos.length], ['sessoes', 'Sessões', jSess().filter((x) => x.data >= hoje()).length], ['juris', 'Jurisprudência', jrf().juris_total || 0]]
+    .map((o) => '<button data-jt="' + o[0] + '" class="' + (S.jt === o[0] ? 'on' : '') + '">' + o[1] + '<span class="n">' + o[2] + '</span></button>').join('') + '</div>';
+  let corpo = '';
+  if (S.jt === 'relatoria') {
+    const f = S.jf || 'abertos', q = (S.jq || '').trim().toLowerCase();
+    const lista = jProc().filter((p) => (f === 'todos' || (f === 'abertos' ? jrfAberto(p) : !jrfAberto(p))) &&
+      (!q || [p.numero, p.recorrente, p.tributo, p.materia, p.notas, p.acordao].join(' ').toLowerCase().includes(q)));
+    const bt = (v, t, n) => '<button data-jf="' + v + '" class="' + (f === v ? 'on' : '') + '">' + t + (n !== undefined ? '<span class="n">' + n + '</span>' : '') + '</button>';
+    corpo = cardProxSessao() +
+      '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="jq" placeholder="Filtrar por número, recorrente, tributo, matéria…" value="' + esc(S.jq || '') + '"></label></div>' +
+      '<div class="filtros">' + bt('abertos', 'Em andamento', abertos.length) + bt('julgados', 'Julgados e arquivados', jProc().length - abertos.length) + bt('todos', 'Todos') + '</div>' +
+      '<div class="card"><div class="lista">' + (lista.map(itemJrf).join('') || vazio(jProc().length ? 'Nenhum processo com esse filtro.' : 'Nenhum processo sob sua relatoria cadastrado ainda.', 'junta')) + '</div></div>';
+  } else if (S.jt === 'sessoes') {
+    const h = hoje(), fut = jSess().filter((x) => x.data >= h), pas = jSess().filter((x) => x.data < h).reverse();
+    corpo = cardProxSessao() +
+      '<div class="sec-tit">Próximas sessões <span class="bdg">' + fut.length + '</span></div><div class="card"><div class="lista">' + (fut.map(itemSessao).join('') || vazio('Nenhuma sessão futura cadastrada.', 'hoje')) + '</div></div>' +
+      '<div class="sec-tit">Sessões anteriores</div><div class="card"><div class="lista">' + (pas.slice(0, 30).map(itemSessao).join('') || vazio('Nenhuma sessão anterior.', 'hoje')) + '</div></div>';
+  } else {
+    const b = S.jb, r = S.jr;
+    const opts = (lista, sel, vazioTxt) => '<option value="">' + vazioTxt + '</option>' + lista.map((v) => '<option value="' + esc(v[0]) + '"' + (v[0] === sel ? ' selected' : '') + '>' + esc(v[1]) + '</option>').join('');
+    const tribs = Array.from(new Set(TRIBUTOS.concat((r && r.tributos) || []))).sort().map((t) => [t, t]);
+    const anos = ((r && r.anos) || []).slice().sort().reverse().map((a) => [a, a]);
+    corpo = '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="jbq" placeholder="Pesquisar na jurisprudência: palavras, acórdão, processo, recorrente…" value="' + esc(b.q) + '" enterkeyhint="search"></label></div>' +
+      '<div class="barra jrf-fil"><select class="sel" id="jbt">' + opts(tribs, b.tributo, 'Todos os tributos') + '</select><select class="sel" id="jbr">' + opts(Object.entries(JRES), b.resultado, 'Qualquer resultado') + '</select><select class="sel" id="jba">' + opts(anos, b.ano, 'Todos os anos') + '</select></div>' +
+      '<p class="pp mut dica">Dica: use aspas para expressão exata ("local da prestação"), OR para alternativas e – para excluir (IPTU -isenção). A busca reconhece variações das palavras (isenção, isento, isentos).</p>' +
+      '<div id="jres">' + resultadosJuris() + '</div>';
+  }
+  $('#conteudo').innerHTML = seg + corpo;
+  $$('[data-jt]').forEach((e) => { e.onclick = () => { S.jt = e.dataset.jt; LS.set('jt', S.jt); VIEWS.junta(); if (S.jt === 'juris' && !S.jr) buscarJuris(); }; });
+  $$('[data-jf]').forEach((e) => { e.onclick = () => { S.jf = e.dataset.jf; VIEWS.junta(); }; });
+  const jq = $('#jq'); if (jq) { let tm; jq.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { S.jq = jq.value; const pos = jq.selectionStart; VIEWS.junta(); const n = $('#jq'); n.focus(); n.setSelectionRange(pos, pos); }, 250); }; }
+  const jbq = $('#jbq');
+  if (jbq) {
+    let tm; jbq.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { S.jb.q = jbq.value; buscarJuris(); }, 450); };
+    jbq.onkeydown = (e) => { if (e.key === 'Enter') { clearTimeout(tm); S.jb.q = jbq.value; buscarJuris(); } };
+    [['#jbt', 'tributo'], ['#jbr', 'resultado'], ['#jba', 'ano']].forEach(([s, k]) => { $(s).onchange = (e) => { S.jb[k] = e.target.value; buscarJuris(); }; });
+    if (!S.jr && !S.jbusy) buscarJuris();
+  }
+  ligarJunta($('#conteudo'));
+};
+function resultadosJuris() {
+  const r = S.jr;
+  if (!r) return '<div class="card"><div class="carregando"><div class="spin"></div></div></div>';
+  if (!r.itens.length) return '<div class="card">' + vazio(jrf().juris_total ? 'Nenhuma decisão encontrada para essa pesquisa.' : 'A base de jurisprudência ainda está vazia. Cadastre decisões em "Nova decisão".', 'busca') + '</div>';
+  const itens = r.itens.map((j) => '<div class="item clic juris" data-jj="' + esc(j.id) + '"><div class="mid"><div class="t">' + (j.acordao ? 'Acórdão ' + esc(j.acordao) : 'Decisão sem número') + (j.processo ? '<span class="par"><span class="sep-p"> · </span>Proc. ' + esc(j.processo) + '</span>' : '') + '</div>' +
+    '<div class="ementa">' + (j.trecho ? marcar(j.trecho) : esc(j.ementa.length > 420 ? j.ementa.slice(0, 420) + '…' : j.ementa)) + '</div>' +
+    '<div class="tags">' + (j.tributo ? '<span class="chip nav">' + esc(j.tributo) + '</span>' : '') + (j.resultado ? '<span class="chip ' + resCls(j.resultado) + '">' + esc(JRES[j.resultado]) + '</span>' : '') +
+    (j.relator ? '<span class="chip">Rel. ' + esc(j.relator) + '</span>' : '') + (j.tem_inteiro_teor ? '<span class="chip">inteiro teor</span>' : '') + '</div></div>' +
+    '<div class="dir">' + (j.data_julgamento ? '<span class="data">' + fdata(j.data_julgamento) + '</span>' : '') + '</div></div>').join('');
+  const mais = r.itens.length < r.total ? '<div style="text-align:center;margin:12px 0"><button class="btn sm" id="jmais">Carregar mais</button></div>' : '';
+  return '<p class="pp mut" style="margin:4px 2px 8px">' + r.total + ' decisão(ões)' + (S.jb.q ? ' para “' + esc(S.jb.q) + '”' : '') + '</p><div class="card"><div class="lista">' + itens + '</div></div>' + mais;
+}
+async function buscarJuris(maisPagina) {
+  const meu = (S.jbn = (S.jbn || 0) + 1); S.jbusy = true;
+  const pagina = maisPagina ? (S.jr ? S.jr.pagina + 1 : 0) : 0;
+  try {
+    const r = await api('jrf_juris_buscar', { filtros: Object.assign({}, S.jb, { pagina }) });
+    if (meu !== S.jbn) return;
+    if (maisPagina && S.jr) { r.itens = S.jr.itens.concat(r.itens); }
+    S.jr = r;
+  } catch (e) { toast(e.message, true); if (!S.jr) S.jr = { itens: [], total: 0, pagina: 0 }; }
+  finally { if (meu === S.jbn) S.jbusy = false; }
+  const box = $('#jres');
+  if (box && location.hash.startsWith('#/junta') && S.jt === 'juris') {
+    box.innerHTML = resultadosJuris(); ligarJunta(box);
+    const m = $('#jmais'); if (m) m.onclick = () => { m.disabled = true; buscarJuris(true); };
+    const t = $('#jbt'); if (t && S.jr.tributos) { /* atualiza lista de tributos conhecidos sem redesenhar a busca */ const atuais = new Set($$('option', t).map((o) => o.value)); S.jr.tributos.forEach((v) => { if (!atuais.has(v)) t.insertAdjacentHTML('beforeend', '<option value="' + esc(v) + '">' + esc(v) + '</option>'); }); }
+    const a = $('#jba'); if (a && S.jr.anos) { const atuais = new Set($$('option', a).map((o) => o.value)); S.jr.anos.slice().sort().reverse().forEach((v) => { if (!atuais.has(v)) a.insertAdjacentHTML('beforeend', '<option value="' + esc(v) + '">' + esc(v) + '</option>'); }); }
+  }
+}
+function editarJrf(p) {
+  p = Object.assign({ status: 'EM_ANALISE' }, p || {});
+  if (p.valor !== null && p.valor !== undefined && p.valor !== '') p.valor = Number(p.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const o = (v, sel) => '<option value="' + esc(v[0]) + '"' + (v[0] === (sel || '') ? ' selected' : '') + '>' + esc(v[1]) + '</option>';
+  const inp = (n, rot, tipo, cls, extra) => '<label class="' + (cls || '') + '">' + rot + '<input class="inp" name="' + n + '" type="' + (tipo || 'text') + '" value="' + esc(p[n] ?? '') + '"' + (extra || '') + '></label>';
+  const sess = jSess().slice().sort((a, b) => b.data.localeCompare(a.data));
+  const corpo = '<form class="form" id="fj" autocomplete="off">' +
+    inp('numero', 'Processo administrativo nº', 'text', '', ' required') + inp('recorrente', 'Recorrente / contribuinte') +
+    '<label>Tributo<input class="inp" name="tributo" list="tribs" value="' + esc(p.tributo || '') + '"><datalist id="tribs">' + TRIBUTOS.map((t) => '<option value="' + esc(t) + '">').join('') + '</datalist></label>' +
+    inp('valor', 'Valor em discussão (R$)', 'text', '', ' inputmode="decimal" placeholder="0,00"') +
+    inp('materia', 'Matéria / tese', 'text', 'full') +
+    inp('distribuido_em', 'Distribuído em', 'date') + inp('prazo_voto', 'Prazo para o voto', 'date') +
+    '<label>Situação<select class="sel" name="status">' + Object.entries(JST).map((e) => o(e, p.status)).join('') + '</select></label>' +
+    '<label>Sessão de julgamento<select class="sel" name="sessao_id"><option value="">Não pautado</option>' + sess.map((x) => o([x.id, fdata(x.data, true) + (x.hora ? ' ' + x.hora : '') + (x.tipo === 'EXTRAORDINARIA' ? ' (extra)' : '')], p.sessao_id)).join('') + '</select></label>' +
+    '<div class="grupo">Julgamento</div>' +
+    '<label>Resultado<select class="sel" name="resultado"><option value="">—</option>' + Object.entries(JRES).map((e) => o(e, p.resultado)).join('') + '</select></label>' + inp('acordao', 'Acórdão nº') +
+    '<label class="full">Ementa<textarea class="inp" name="ementa" style="min-height:90px">' + esc(p.ementa || '') + '</textarea></label>' +
+    '<div class="grupo">Anotações</div>' +
+    '<label class="full">Notas do relator<textarea class="inp" name="notas" style="min-height:80px">' + esc(p.notas || '') + '</textarea></label></form>';
+  const botoes = [{ txt: 'Cancelar', valor: null }, { txt: 'Salvar', cls: 'pri', ic: 'check', acao: async (v) => {
+    const d = Object.fromEntries(new FormData($('#fj', v)).entries()); d.id = p.id || null;
+    if (!String(d.numero || '').trim()) { toast('Informe o número do processo.', true); return false; }
+    if (d.sessao_id && d.status === 'EM_ANALISE') d.status = 'PAUTADO';
+    const r = await api('jrf_processo_salvar', { processo: d }); substituir(S.dados.jrf.processos, r); redesenhar(); toast(p.id ? 'Processo atualizado.' : 'Processo cadastrado.');
+    return r;
+  } }];
+  if (p.id) {
+    botoes.unshift({ txt: 'Excluir', ic: 'lixo', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Excluir processo', 'Excluir o processo ' + p.numero + ' da sua relatoria?', 'Excluir', true))) return false; await api('jrf_processo_excluir', { id: p.id }); S.dados.jrf.processos = jProc().filter((x) => x.id !== p.id); redesenhar(); toast('Processo excluído.'); } });
+    if (p.ementa) botoes.splice(1, 0, { txt: 'Levar à jurisprudência', ic: 'junta', cls: 'fant', valor: 'juris' });
+  }
+  modal({ titulo: p.id ? 'Processo ' + p.numero : 'Novo processo sob relatoria', corpo, largo: true, botoes }).then((r) => {
+    if (r === 'juris') editarJuris({ acordao: p.acordao, processo: p.numero, recorrente: p.recorrente, tributo: p.tributo, resultado: p.resultado, ementa: p.ementa, relator: (S.eu && S.eu.nome) || '', data_julgamento: (sessao(p.sessao_id) || {}).data || '' });
+  });
+}
+function editarSessao(x) {
+  x = x || { tipo: 'ORDINARIA' };
+  const meus = x.id ? jProc().filter((p) => p.sessao_id === x.id) : [];
+  const corpo = '<form class="form" id="fs" autocomplete="off">' +
+    '<label>Data<input class="inp" type="date" name="data" value="' + esc(x.data || '') + '" required></label>' +
+    '<label>Horário<input class="inp" type="time" name="hora" value="' + esc(x.hora || '') + '"></label>' +
+    '<label>Tipo<select class="sel" name="tipo">' + [['ORDINARIA', 'Ordinária'], ['EXTRAORDINARIA', 'Extraordinária']].map((o) => '<option value="' + o[0] + '"' + (x.tipo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>' +
+    '<label>Local / link<input class="inp" name="local" value="' + esc(x.local || '') + '"></label>' +
+    '<label class="full">Observações / pauta<textarea class="inp" name="observacoes" style="min-height:70px">' + esc(x.observacoes || '') + '</textarea></label></form>' +
+    (meus.length ? '<div class="sec-tit" style="margin-top:18px">Seus processos nesta sessão</div><div class="lista borda">' + meus.map(itemJrf).join('') + '</div>' : '');
+  const botoes = [{ txt: 'Cancelar', valor: null }, { txt: 'Salvar', cls: 'pri', ic: 'check', acao: async (v) => {
+    const d = Object.fromEntries(new FormData($('#fs', v)).entries()); d.id = x.id || null;
+    if (!d.data) { toast('Informe a data da sessão.', true); return false; }
+    const r = await api('jrf_sessao_salvar', { sessao: d }); substituir(S.dados.jrf.sessoes, r); S.dados.jrf.sessoes.sort((a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || ''))); redesenhar(); toast(x.id ? 'Sessão atualizada.' : 'Sessão cadastrada.');
+  } }];
+  if (x.id) botoes.unshift({ txt: 'Excluir', ic: 'lixo', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Excluir sessão', 'Excluir a sessão de ' + fdata(x.data, true) + '? Os processos pautados nela ficam sem sessão.', 'Excluir', true))) return false; await api('jrf_sessao_excluir', { id: x.id }); S.dados.jrf.sessoes = jSess().filter((s) => s.id !== x.id); jProc().forEach((p) => { if (p.sessao_id === x.id) p.sessao_id = null; }); redesenhar(); toast('Sessão excluída.'); } });
+  modal({ titulo: x.id ? 'Sessão de ' + fdata(x.data) : 'Nova sessão de julgamento', corpo, botoes, largo: !!meus.length });
+  const v = $$('.veu').pop(); ligarJunta($('.lista', v) || v); $$('[data-s]', v).forEach((e) => { e.onclick = null; });
+}
+async function verJuris(id) {
+  let j; try { j = await api('jrf_juris_ver', { id }); } catch (e) { return toast(e.message, true); }
+  if (!j) return toast('Decisão não encontrada.', true);
+  const L = (r, v) => v ? '<dt>' + r + '</dt><dd>' + v + '</dd>' : '';
+  const link = j.link && /^https?:\/\//i.test(j.link) ? '<a href="' + esc(j.link) + '" target="_blank" rel="noopener" class="lnk">' + esc(j.link) + '</a>' : esc(j.link);
+  const corpo = '<div class="tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">' + (j.tributo ? '<span class="chip nav">' + esc(j.tributo) + '</span>' : '') + (j.resultado ? '<span class="chip ' + resCls(j.resultado) + '">' + esc(JRES[j.resultado]) + '</span>' : '') + '</div>' +
+    '<div class="ementa-box">' + esc(j.ementa) + '</div>' +
+    '<dl class="det" style="margin-top:14px">' + L('Acórdão', esc(j.acordao)) + L('Processo', esc(j.processo)) + L('Julgamento', j.data_julgamento ? fdata(j.data_julgamento, true) : '') + L('Relator', esc(j.relator)) + L('Recorrente', esc(j.recorrente)) + L('Palavras-chave', esc(j.palavras_chave)) + L('Link', link) + '</dl>' +
+    (j.inteiro_teor ? '<details class="teor"><summary>Inteiro teor</summary><div>' + esc(j.inteiro_teor) + '</div></details>' : '');
+  const r = await modal({ titulo: j.acordao ? 'Acórdão ' + j.acordao : 'Decisão da Junta', corpo, largo: true, botoes: [
+    { txt: 'Copiar ementa', ic: 'doc', cls: 'fant esq', acao: async () => { try { await navigator.clipboard.writeText(j.ementa); toast('Ementa copiada.'); } catch (e) { toast('Não foi possível copiar.', true); } return false; } },
+    { txt: 'Fechar', valor: null }, { txt: 'Editar', ic: 'editar', cls: 'pri', valor: 'editar' }] });
+  if (r === 'editar') editarJuris(j);
+}
+function editarJuris(j) {
+  j = j || {};
+  const inp = (n, rot, tipo, cls) => '<label class="' + (cls || '') + '">' + rot + '<input class="inp" name="' + n + '" type="' + (tipo || 'text') + '" value="' + esc(j[n] || '') + '"></label>';
+  const corpo = '<form class="form" id="fjj" autocomplete="off">' +
+    inp('acordao', 'Acórdão nº') + inp('processo', 'Processo administrativo') +
+    inp('data_julgamento', 'Data do julgamento', 'date') + inp('relator', 'Relator(a)') +
+    inp('recorrente', 'Recorrente') +
+    '<label>Tributo<input class="inp" name="tributo" list="tribs2" value="' + esc(j.tributo || '') + '"><datalist id="tribs2">' + TRIBUTOS.map((t) => '<option value="' + esc(t) + '">').join('') + '</datalist></label>' +
+    '<label>Resultado<select class="sel" name="resultado"><option value="">—</option>' + Object.entries(JRES).map((e) => '<option value="' + e[0] + '"' + (e[0] === j.resultado ? ' selected' : '') + '>' + e[1] + '</option>').join('') + '</select></label>' +
+    inp('palavras_chave', 'Palavras-chave (separe por ;)') +
+    '<label class="full">Ementa<textarea class="inp" name="ementa" style="min-height:120px" required>' + esc(j.ementa || '') + '</textarea></label>' +
+    '<label class="full">Inteiro teor (opcional – também entra na busca)<textarea class="inp" name="inteiro_teor" style="min-height:90px">' + esc(j.inteiro_teor || '') + '</textarea></label>' +
+    inp('link', 'Link para o documento', 'url', 'full') + '</form>';
+  const botoes = [{ txt: 'Cancelar', valor: null }, { txt: 'Salvar', cls: 'pri', ic: 'check', acao: async (v) => {
+    const d = Object.fromEntries(new FormData($('#fjj', v)).entries()); d.id = j.id || null;
+    if (!String(d.ementa || '').trim()) { toast('Informe a ementa.', true); return false; }
+    await api('jrf_juris_salvar', { juris: d });
+    if (!j.id && S.dados && S.dados.jrf) S.dados.jrf.juris_total = (S.dados.jrf.juris_total || 0) + 1;
+    toast(j.id ? 'Decisão atualizada.' : 'Decisão incluída na jurisprudência.'); S.jr = null; if (location.hash.startsWith('#/junta')) { S.jt = 'juris'; VIEWS.junta(); }
+  } }];
+  if (j.id) botoes.unshift({ txt: 'Excluir', ic: 'lixo', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Excluir decisão', 'Excluir esta decisão da base de jurisprudência?', 'Excluir', true))) return false; await api('jrf_juris_excluir', { id: j.id }); if (S.dados && S.dados.jrf) S.dados.jrf.juris_total = Math.max(0, (S.dados.jrf.juris_total || 1) - 1); S.jr = null; toast('Decisão excluída.'); if (location.hash.startsWith('#/junta')) VIEWS.junta(); } });
+  modal({ titulo: j.id ? 'Editar decisão' : 'Nova decisão na jurisprudência', corpo, largo: true, botoes });
+}
 
 // ---------- ações ----------
 function redesenhar() { ordenar(); rotaSemCarregar(); badges(); }

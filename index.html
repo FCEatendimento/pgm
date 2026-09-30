@@ -231,6 +231,32 @@ table.tab td.md{min-width:120px}table.tab td.lg{min-width:140px}table.tab td.xl{
 .marca .logo img,.login .logo img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}
 :root[data-tema="escuro"] .filtros button.on{background:var(--gold);border-color:var(--gold);color:#fff}
 @media (prefers-color-scheme:dark){:root:not([data-tema="claro"]) .filtros button.on{background:var(--gold);border-color:var(--gold);color:#fff}}
+
+.jrf-abas{margin:14px 0 4px;display:flex;width:max-content;max-width:100%;overflow-x:auto}
+.jrf-abas button .n{margin-left:6px;font-weight:500;opacity:.65}
+.jrf-prox{display:flex;align-items:center;gap:14px;padding:14px 16px;margin:12px 0 0}
+.jrf-prox.clic{cursor:pointer}.jrf-prox.clic:hover{border-color:var(--line-2)}
+.jrf-prox .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--gold-soft);color:var(--gold);flex:none}
+.jrf-prox>div:nth-child(2){flex:1}
+.jrf-prox .rot{font-size:12px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.jrf-prox .t{font-weight:650;font-size:15px}
+.jrf-prox .d{font-size:13px;color:var(--mut)}
+.jrf-prox.vaz .t{color:var(--mut);font-weight:500}
+.dia{width:46px;flex:none;text-align:center;border-radius:10px;background:var(--gold-soft);color:var(--gold);padding:5px 0;line-height:1.1}
+.dia b{display:block;font-size:19px}.dia span{font-size:11px;font-weight:600;text-transform:uppercase}
+.dia.pass{background:var(--surface-2);color:var(--mut)}
+.jrf-fil{margin-top:8px}.jrf-fil .sel{flex:1;min-width:150px;width:auto}
+.dica{margin:8px 2px 12px}
+mark{background:rgba(224,169,58,.32);color:inherit;border-radius:3px;padding:0 1px}
+.item .ementa{font-size:13.5px;line-height:1.5;margin-top:4px;color:var(--txt)}
+.ementa-box{background:var(--surface-2);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;padding:12px 14px;white-space:pre-wrap;line-height:1.55;font-size:14px}
+details.teor{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+details.teor summary{cursor:pointer;font-weight:600}
+details.teor div{white-space:pre-wrap;font-size:13.5px;line-height:1.55;margin-top:10px;max-height:50vh;overflow:auto}
+.lista.borda{border:1px solid var(--line);border-radius:12px}
+a.lnk{color:var(--info);word-break:break-all}
+@media (max-width:420px){.tabbar a{font-size:9.5px}.tabbar svg.i{width:21px;height:21px}}
+@media (max-width:560px){.jrf-prox{flex-wrap:wrap}.jrf-prox>.chip{margin-left:52px}}
 </style>
 </head>
 <body>
