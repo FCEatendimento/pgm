@@ -490,7 +490,8 @@ VIEWS.junta = function (arg) {
     const opts = (lista, sel, vazioTxt) => '<option value="">' + vazioTxt + '</option>' + lista.map((v) => '<option value="' + esc(v[0]) + '"' + (v[0] === sel ? ' selected' : '') + '>' + esc(v[1]) + '</option>').join('');
     const tribs = Array.from(new Set(TRIBUTOS.concat((r && r.tributos) || []))).sort().map((t) => [t, t]);
     const anos = ((r && r.anos) || []).slice().sort().reverse().map((a) => [a, a]);
-    corpo = '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="jbq" placeholder="Pesquisar na jurisprudência: palavras, acórdão, processo, recorrente…" value="' + esc(b.q) + '" enterkeyhint="search"></label></div>' +
+    corpo = '<div id="jimp">' + cardImport() + '</div>' +
+      '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="jbq" placeholder="Pesquisar na jurisprudência: palavras, acórdão, processo, recorrente…" value="' + esc(b.q) + '" enterkeyhint="search"></label></div>' +
       '<div class="barra jrf-fil"><select class="sel" id="jbt">' + opts(tribs, b.tributo, 'Todos os tributos') + '</select><select class="sel" id="jbr">' + opts(Object.entries(JRES), b.resultado, 'Qualquer resultado') + '</select><select class="sel" id="jba">' + opts(anos, b.ano, 'Todos os anos') + '</select></div>' +
       '<p class="pp mut dica">Dica: use aspas para expressão exata ("local da prestação"), OR para alternativas e – para excluir (IPTU -isenção). A busca reconhece variações das palavras (isenção, isento, isentos).</p>' +
       '<div id="jres">' + resultadosJuris() + '</div>';
@@ -505,9 +506,32 @@ VIEWS.junta = function (arg) {
     jbq.onkeydown = (e) => { if (e.key === 'Enter') { clearTimeout(tm); S.jb.q = jbq.value; buscarJuris(); } };
     [['#jbt', 'tributo'], ['#jbr', 'resultado'], ['#jba', 'ano']].forEach(([s, k]) => { $(s).onchange = (e) => { S.jb[k] = e.target.value; buscarJuris(); }; });
     if (!S.jr && !S.jbusy) buscarJuris();
+    if (!S.jarq || Date.now() - (S.jarqEm || 0) > 60000) carregarImport(); else ligarImport();
   }
   ligarJunta($('#conteudo'));
 };
+const AST = { OK: ['ok', 'importado'], ERRO: ['bad', 'erro'], IGNORADO: ['warn', 'sem decisão'], REPROCESSAR: ['info', 'na fila'] };
+function cardImport() {
+  const a = S.jarq, t = (a && a.totais) || {};
+  const resumo = !a ? 'Carregando…' : !t.arquivos ? 'Nenhum arquivo lido ainda. Coloque os acórdãos (PDF, Word, Google Docs ou imagem) na pasta e eles aparecem aqui em até 15 minutos.'
+    : t.arquivos + ' arquivo(s) lido(s) · ' + t.decisoes + ' decisão(ões) importada(s)' + (t.erro ? ' · <b class="c-bad">' + t.erro + ' com erro</b>' : '') + (t.ultimo ? ' · último em ' + esc(new Date(t.ultimo).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) : '');
+  const lista = a && a.arquivos && a.arquivos.length ? '<details class="imp-det"' + (t.erro ? ' open' : '') + '><summary>Ver arquivos</summary><div class="lista">' + a.arquivos.map((f) => {
+    const st = AST[f.status] || ['', f.status];
+    return '<div class="item"><div class="mid"><div class="t"><a class="lnk" href="' + esc(f.link || '#') + '" target="_blank" rel="noopener">' + esc(f.nome || f.file_id) + '</a></div>' +
+      (f.erro ? '<div class="d">' + esc(f.erro) + '</div>' : '') + '<div class="tags"><span class="chip ' + st[0] + '">' + st[1] + '</span>' + (f.decisoes ? '<span class="chip">' + f.decisoes + ' decisão(ões)</span>' : '') + '</div></div>' +
+      '<div class="dir"><span class="pp mut">' + esc(new Date(f.processado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) + '</span>' +
+      (f.status !== 'REPROCESSAR' ? '<button class="btn sm fant" data-rep="' + esc(f.file_id) + '">Reprocessar</button>' : '') + '</div></div>';
+  }).join('') + '</div></details>' : '';
+  return '<div class="card aviso imp"><div class="ico">' + ic('atual', 's') + '</div><div style="flex:1;min-width:0"><b>Importação automática do Google Drive</b>' +
+    '<p>Pasta <b>PGM - Jurisprudência JRF</b>, verificada a cada 15 minutos. ' + resumo + '</p>' + lista + '</div></div>';
+}
+async function carregarImport() {
+  try { S.jarq = await api('jrf_arquivos'); S.jarqEm = Date.now(); } catch (e) { S.jarq = S.jarq || { arquivos: [], totais: {} }; }
+  const box = $('#jimp'); if (box) { box.innerHTML = cardImport(); ligarImport(); }
+}
+function ligarImport() {
+  $$('[data-rep]').forEach((b) => { b.onclick = async () => { b.disabled = true; try { await api('jrf_arquivo_reprocessar', { file_id: b.dataset.rep }); toast('O arquivo será lido de novo em até 15 minutos.'); carregarImport(); } catch (e) { b.disabled = false; toast(e.message, true); } }; });
+}
 function resultadosJuris() {
   const r = S.jr;
   if (!r) return '<div class="card"><div class="carregando"><div class="spin"></div></div></div>';
