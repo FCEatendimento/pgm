@@ -190,6 +190,47 @@ select.sel:focus,input.inp:focus,textarea.inp:focus,.busca:focus-within{border-c
 .login .obs{font-size:12px;color:#7C889B;margin-top:22px}
 .login .erro{background:rgba(192,38,26,.18);color:#ffb4ab;border-radius:10px;padding:10px 12px;font-size:13px;margin-top:16px}
 .rodape-app{margin-top:28px;font-size:12px;color:var(--mut-2);text-align:center}
+
+.nav-tit{font-size:11px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#6F7B8F;padding:20px 12px 6px}
+.nav a svg.ext{margin-left:auto;opacity:.5;width:14px;height:14px}
+.seg{display:inline-flex;gap:2px;padding:3px;border-radius:11px;background:var(--surface-2);border:1px solid var(--line-2);flex:none}
+.seg button{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:0;border-radius:8px;background:transparent;font-size:13px;font-weight:600;color:var(--mut);cursor:pointer}
+.seg button.on{background:var(--surface);color:var(--txt);box-shadow:var(--sh)}
+:root[data-tema="escuro"] .seg button.on{background:var(--navy-2)}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]) .seg button.on{background:var(--navy-2)}}
+a.item{color:inherit}
+.conteudo.largo{max-width:none}
+.tab-wrap{overflow:auto;max-height:calc(100vh - 250px)}
+@media (max-width:900px){.tab-wrap{max-height:calc(100vh - 300px - var(--tab))}.barra .seg button span{display:none}.barra .seg button{padding:0 10px}}
+table.tab{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}
+table.tab th{position:sticky;top:0;z-index:1;background:var(--surface-2);text-align:left;font-size:12px;font-weight:650;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;padding:10px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap;cursor:pointer;user-select:none}
+table.tab th:hover,table.tab th.ord{color:var(--txt)}
+table.tab th .seta{font-size:9px;margin-left:5px;color:var(--gold)}
+table.tab td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.4}
+table.tab tbody tr{cursor:pointer}
+table.tab tbody tr:hover td{background:var(--surface-2)}
+table.tab tbody tr:last-child td{border-bottom:0}
+table.tab td.nw{white-space:nowrap}
+table.tab td.num{font-variant-numeric:tabular-nums;font-weight:600}
+table.tab td.md{min-width:140px}
+table.tab td.lg{min-width:170px}
+table.tab td.xl{min-width:240px;max-width:380px}
+table.tab td .dot{display:inline-block;margin:0 7px 1px 0;vertical-align:middle;width:8px;height:8px}
+table.tab td .pp{margin-top:3px}
+.c-bad{color:var(--bad)}.c-warn{color:var(--warn)}.c-ouro{color:var(--gold)}.c-ok{color:var(--ok)}
+tr.u-bad td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+tr.u-warn td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+table.tab th:first-child{left:0;z-index:2}
+table.tab td:first-child{position:sticky;left:0;background:var(--surface);z-index:1}
+table.tab td.md{min-width:120px}table.tab td.lg{min-width:140px}table.tab td.xl{min-width:200px;max-width:340px}
+:root[data-tema="escuro"] .chip.nav{background:var(--navy-2);border-color:var(--line-2)}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]) .chip.nav{background:var(--navy-2);border-color:var(--line-2)}}
+.marca .logo,.login .logo{background:none!important;border:0!important;border-radius:0!important}
+.marca .logo{width:34px;height:54px}
+.login .logo{width:78px;height:124px;margin-bottom:14px}
+.marca .logo img,.login .logo img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}
+:root[data-tema="escuro"] .filtros button.on{background:var(--gold);border-color:var(--gold);color:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]) .filtros button.on{background:var(--gold);border-color:var(--gold);color:#fff}}
 </style>
 </head>
 <body>

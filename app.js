@@ -33,8 +33,17 @@ const IC = {
   ed: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   lua: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   lixo: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>',
-  editar: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'
+  editar: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  externo: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
+  doc: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/>',
+  email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+  tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>'
 };
+const LINKS = [
+  { t: 'Caixa de memorandos', d: 'memo.novohamburgo.rs.gov.br', url: 'https://memo.novohamburgo.rs.gov.br', ic: 'doc' },
+  { t: 'E-mail institucional', d: 'expresso.novohamburgo.rs.gov.br', url: 'https://expresso.novohamburgo.rs.gov.br', ic: 'email' }
+];
 const ic = (n, c) => '<svg class="i' + (c ? ' ' + c : '') + '" viewBox="0 0 24 24">' + (IC[n] || '') + '</svg>';
 
 const TRIB = { TJRS1: 'TJRS 1º grau', TJRS2: 'TJRS 2º grau', TRF41: 'TRF4 1º grau', TRF42: 'TRF4 2º grau' };
@@ -49,7 +58,8 @@ const S = {
   token: LS.get('token', ''), eu: LS.get('eu', null),
   dados: LS.get('dados', null), carregadoEm: 0,
   f: Object.assign({ sit: 'abertos', trib: '', marca: '', q: '' }, LS.get('filtros', {})),
-  ft: 'abertas'
+  ft: 'abertas',
+  vis: LS.get('vis', 'lista'), ord: LS.get('ord', { c: 'fim', d: 1 })
 };
 
 async function api(acao, dados) {
@@ -99,7 +109,7 @@ function addDias(s, n) { const d = dt(s); d.setUTCDate(d.getUTCDate() + n); retu
 // ---------- login ----------
 function telaLogin(erro) {
   document.title = 'Entrar · PGM';
-  $('#app').innerHTML = '<div class="login"><div class="caixa"><div class="logo">PGM</div><h1>Prazos e Tarefas</h1><p>Procuradoria-Geral do Município de Novo Hamburgo</p><div class="gbtn" id="gbtn"><div class="spin"></div></div>' +
+  $('#app').innerHTML = '<div class="login"><div class="caixa"><div class="logo"><img src="brasao.png" alt="Brasão de Novo Hamburgo"></div><h1>Prazos e Tarefas</h1><p>Procuradoria-Geral do Município de Novo Hamburgo</p><div class="gbtn" id="gbtn"><div class="spin"></div></div>' +
     (erro ? '<div class="erro">' + esc(erro) + '</div>' : '') + '<div class="obs">Acesso restrito. Entre com a conta Google autorizada.</div></div></div>';
   const iniciar = () => {
     if (!window.google || !google.accounts || !google.accounts.id) return setTimeout(iniciar, 200);
@@ -157,13 +167,16 @@ const ROTAS = [
 function iniciarApp() {
   const eu = S.eu || {};
   const av = eu.foto ? '<img src="' + esc(eu.foto) + '" alt="" referrerpolicy="no-referrer">' : esc((eu.nome || '?').slice(0, 1));
-  $('#app').innerHTML = '<aside class="side"><div class="marca"><div class="logo">PGM</div><div><b>Prazos e Tarefas</b><span>PGM · Novo Hamburgo</span></div></div>' +
+  $('#app').innerHTML = '<aside class="side"><div class="marca"><div class="logo"><img src="brasao.png" alt="Brasão de Novo Hamburgo"></div><div><b>Prazos e Tarefas</b><span>PGM · Novo Hamburgo</span></div></div>' +
     '<nav class="nav">' + ROTAS.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + r.t + '</span><span class="bdg-slot"></span></a>').join('') + '</nav>' +
+    '<div class="nav-tit">Acesso rápido</div><nav class="nav">' + LINKS.map((l) => '<a href="' + l.url + '" target="_blank" rel="noopener" title="' + esc(l.d) + '">' + ic(l.ic) + '<span>' + esc(l.t) + '</span>' + ic('externo', 's ext') + '</a>').join('') + '</nav>' +
     '<div class="rodape"><div class="av">' + av + '</div><div style="min-width:0"><div class="n">' + esc(eu.nome || '') + '</div><div class="e">' + esc(eu.email || '') + '</div></div><button title="Sair" id="bsair">' + ic('sair') + '</button></div></aside>' +
-    '<main class="main"><header class="topo"><h1 id="titulo"></h1><div class="acoes"><button class="btn fant ico" id="batual" title="Atualizar">' + ic('atual') + '</button><button class="btn pri sm" id="bnovo">' + ic('mais2', 's') + '<span>Novo prazo</span></button></div></header><div class="conteudo" id="conteudo"></div></main>' +
+    '<main class="main"><header class="topo"><h1 id="titulo"></h1><div class="acoes"><button class="btn fant ico" id="btema" title="Alternar tema claro/escuro"></button><button class="btn fant ico" id="batual" title="Atualizar">' + ic('atual') + '</button><button class="btn pri sm" id="bnovo">' + ic('mais2', 's') + '<span>Novo prazo</span></button></div></header><div class="conteudo" id="conteudo"></div></main>' +
     '<nav class="tabbar">' + ROTAS.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + r.t + '</span><span class="bdg-slot"></span></a>').join('') + '<a href="#/mais" data-r="mais">' + ic('mais') + '<span>Mais</span></a></nav>';
   $('#bsair').onclick = () => sair(false);
   $('#batual').onclick = () => rota(true);
+  $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
+  iconeTema();
   $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : editarPrazo());
   if (!location.hash || location.hash === '#/') location.hash = '#/inicio';
   rota();
@@ -182,6 +195,7 @@ async function rota(forcar) {
   const v = VIEWS[k] ? k : 'inicio';
   $$('a[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === v));
   $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : 'Novo prazo';
+  $('#conteudo').classList.remove('largo');
   const meu = ++rodando;
   if (!S.dados) $('#conteudo').innerHTML = '<div class="carregando"><div class="spin"></div></div>';
   else VIEWS[v](arg);
@@ -270,17 +284,57 @@ VIEWS.prazos = function () {
     (!q || [p.processo, p.parte, p.classe, p.providencia, p.intimacao, p.orgao, p.memo_secretaria, p.observacoes].join(' ').toLowerCase().includes(q)));
   const cnt = (fn) => base.filter(fn).length;
   const bt = (grp, val, txt, n) => '<button data-' + grp + '="' + val + '" class="' + (f[grp] === val ? 'on' : '') + '">' + txt + (n !== undefined ? '<span class="n">' + n + '</span>' : '') + '</button>';
-  $('#conteudo').innerHTML = '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="q" placeholder="Buscar processo, parte, peça, secretaria…" value="' + esc(f.q) + '"></label></div>' +
+  const vis = S.vis === 'tabela' ? 'tabela' : 'lista';
+  $('#conteudo').classList.toggle('largo', vis === 'tabela');
+  $('#conteudo').innerHTML = '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="q" placeholder="Buscar processo, parte, peça, secretaria…" value="' + esc(f.q) + '"></label>' +
+    '<div class="seg" role="group" aria-label="Formato">' + [['lista', 'Lista', 'lista'], ['tabela', 'Tabela', 'tabela']].map((o) => '<button data-vis="' + o[0] + '" class="' + (vis === o[0] ? 'on' : '') + '" title="Ver em ' + o[1].toLowerCase() + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div></div>' +
     '<div class="filtros">' + bt('sit', 'abertos', 'Abertos', prazos().filter(aberto).length) + bt('sit', 'concluidos', 'Concluídos') + bt('sit', 'arquivados', 'Arquivados') + bt('sit', 'todos', 'Todos') +
     '<span class="sep"></span>' + bt('trib', '', 'Todos os tribunais') + Object.keys(TRIB).map((k) => bt('trib', k, TRIB_CURTO[k], cnt((p) => p.tribunal === k))).join('') + '</div>' +
     '<div class="filtros" style="margin-top:-4px">' + bt('marca', '', 'Sem filtro') + Object.keys(MARCAS).map((k) => bt('marca', k, MARCAS[k][0], cnt(MARCAS[k][1]))).join('') + '</div>' +
-    '<div class="card"><div class="lista">' + (lista.map(itemPrazo).join('') || vazio(prazos().length ? 'Nenhum prazo com esses filtros.' : 'Nenhum prazo cadastrado ainda.', 'prazo')) + '</div></div>' +
+    (!lista.length ? '<div class="card">' + vazio(prazos().length ? 'Nenhum prazo com esses filtros.' : 'Nenhum prazo cadastrado ainda.', 'prazo') + '</div>'
+      : vis === 'tabela' ? tabelaPrazos(lista) : '<div class="card"><div class="lista">' + lista.map(itemPrazo).join('') + '</div></div>') +
     '<p class="pp mut" style="margin:10px 2px">' + lista.length + ' prazo(s)</p>';
+  $$('[data-vis]').forEach((b) => { b.onclick = () => { S.vis = b.dataset.vis; LS.set('vis', S.vis); VIEWS.prazos(); }; });
+  $$('th[data-oc]').forEach((th) => { th.onclick = () => { const c = th.dataset.oc; S.ord = { c, d: S.ord.c === c ? -S.ord.d : 1 }; LS.set('ord', S.ord); VIEWS.prazos(); }; });
   $$('[data-sit],[data-trib],[data-marca]').forEach((b) => { b.onclick = () => { const g = b.dataset.sit !== undefined ? 'sit' : b.dataset.trib !== undefined ? 'trib' : 'marca'; S.f[g] = b.dataset[g]; LS.set('filtros', S.f); VIEWS.prazos(); }; });
   const qi = $('#q'); let tm;
   qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { S.f.q = qi.value; LS.set('filtros', S.f); const pos = qi.selectionStart; VIEWS.prazos(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); }, 250); };
   ligarListas($('#conteudo'));
 };
+const COLS = [
+  { c: 'fim', t: 'Prazo', v: (p) => p.fim || '9999' },
+  { c: 'tribunal', t: 'Tribunal', v: (p) => p.tribunal },
+  { c: 'processo', t: 'Processo', v: (p) => p.processo },
+  { c: 'parte', t: 'Parte', v: (p) => (p.parte || '').toLowerCase() },
+  { c: 'classe', t: 'Classe', v: (p) => (p.classe || '').toLowerCase() },
+  { c: 'providencia', t: 'Providência', v: (p) => (p.providencia || '').toLowerCase() },
+  { c: 'status', t: 'Situação', v: (p) => Object.keys(STATUS).indexOf(p.status) },
+  { c: 'ed', t: 'Embargos', v: (p) => p.ed_cabivel ? (p.ed_prazo || '0') : '~' },
+  { c: 'memo', t: 'Memorando', v: (p) => ({ A_ENVIAR: 0, ENVIADO: 1, RESPONDIDO: 2 }[p.memo_status] ?? 3) },
+  { c: 'retorno', t: 'Retorno memo', v: (p) => p.memo_status && p.memo_status !== 'NAO' ? (p.memo_retorno || (p.fim ? addDias(p.fim, -7) : '9999')) : '~' }
+];
+function tabelaPrazos(lista) {
+  const col = COLS.find((x) => x.c === S.ord.c) || COLS[0], d = S.ord.d || 1;
+  const l = lista.slice().sort((a, b) => { const x = col.v(a), y = col.v(b); return (x < y ? -1 : x > y ? 1 : 0) * d || String(a.fim || '9').localeCompare(String(b.fim || '9')); });
+  const th = COLS.map((x) => '<th data-oc="' + x.c + '" class="' + (x.c === col.c ? 'ord' : '') + '">' + x.t + (x.c === col.c ? '<span class="seta">' + (d > 0 ? '▲' : '▼') + '</span>' : '') + '</th>').join('');
+  const linhas = l.map((p) => {
+    const n = dias(p.fim), u = aberto(p) ? urg(n) : 'ok';
+    const ret = p.memo_retorno || (p.fim ? addDias(p.fim, -7) : null);
+    const temMemo = p.memo_status && p.memo_status !== 'NAO';
+    return '<tr data-p="' + esc(p.id) + '" class="u-' + (u || 'n') + '">' +
+      '<td class="nw"><span class="dot ' + u + '"></span><b>' + fdata(p.fim) + '</b>' + (p.fim && aberto(p) ? '<div class="pp ' + (u ? 'c-' + u : 'mut') + '">' + rel(n) + '</div>' : '') + '</td>' +
+      '<td class="nw"><span class="chip nav">' + esc(TRIB_CURTO[p.tribunal] || p.tribunal) + '</span></td>' +
+      '<td class="nw num">' + esc(p.processo) + '</td>' +
+      '<td class="lg">' + esc(p.parte || '—') + '</td>' +
+      '<td class="md">' + esc(p.classe || '—') + '</td>' +
+      '<td class="xl">' + esc(p.providencia || p.intimacao || '—') + '</td>' +
+      '<td class="nw"><span class="chip ' + (p.status === 'EM_ELABORACAO' ? 'info' : aberto(p) ? '' : 'ok') + '">' + esc(STATUS[p.status] || p.status) + '</span></td>' +
+      '<td class="nw">' + (p.ed_cabivel ? '<span class="chip ouro">Sim' + (p.ed_prazo ? ' · até ' + fdata(p.ed_prazo) : '') + '</span>' : '<span class="mut">Não</span>') + '</td>' +
+      '<td class="md">' + (temMemo ? '<span class="chip ' + (p.memo_status === 'RESPONDIDO' ? 'ok' : p.memo_status === 'A_ENVIAR' ? 'warn' : 'info') + '">' + esc(MEMO[p.memo_status].split(' –')[0]) + '</span>' + (p.memo_secretaria ? '<div class="pp mut">' + esc(p.memo_secretaria) + '</div>' : '') : '<span class="mut">Não</span>') + '</td>' +
+      '<td class="nw">' + (temMemo ? fdata(ret) : '<span class="mut">—</span>') + '</td></tr>';
+  }).join('');
+  return '<div class="card tab-wrap"><table class="tab"><thead><tr>' + th + '</tr></thead><tbody>' + linhas + '</tbody></table></div>';
+}
 VIEWS.tarefas = function () {
   titulo('Tarefas');
   const lista = tarefas().filter((t) => S.ft === 'todas' || (S.ft === 'abertas' ? t.status === 'ABERTA' : t.status === 'FEITA'));
@@ -322,14 +376,23 @@ VIEWS.mais = function () {
   const eu = S.eu || {};
   const tema = document.documentElement.dataset.tema || 'auto';
   $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px"><div class="lista"><div class="item"><div class="av">' + (eu.foto ? '<img src="' + esc(eu.foto) + '" alt="" referrerpolicy="no-referrer">' : '') + '</div><div class="mid"><div class="t">' + esc(eu.nome || '') + '</div><div class="d">' + esc(eu.email || '') + '</div></div></div>' +
-    '<div class="item clic" id="mtema">' + ic('lua') + '<div class="mid"><div class="t">Tema</div><div class="d">' + ({ auto: 'Automático', claro: 'Claro', escuro: 'Escuro' }[tema]) + '</div></div></div>' +
+    '<div class="item">' + ic(temaEfetivo() === 'escuro' ? 'lua' : 'sol') + '<div class="mid"><div class="t">Tema</div><div class="seg" style="margin-top:8px">' + [['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map((o) => '<button data-tema="' + o[0] + '" class="' + (tema === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div></div>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
-    '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>';
-  $('#mtema').onclick = () => { const n = { auto: 'claro', claro: 'escuro', escuro: 'auto' }[tema]; aplicarTema(n); VIEWS.mais(); };
+    '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>' +
+    '<div class="sec-tit">Acesso rápido</div><div class="card"><div class="lista">' + LINKS.map((l) => '<a class="item clic" href="' + l.url + '" target="_blank" rel="noopener">' + ic(l.ic) + '<div class="mid"><div class="t">' + esc(l.t) + '</div><div class="d">' + esc(l.d) + '</div></div>' + ic('externo', 's') + '</a>').join('') + '</div></div>';
+  $$('button[data-tema]').forEach((b) => { b.onclick = () => { aplicarTema(b.dataset.tema); VIEWS.mais(); }; });
   $('#matual').onclick = () => rota(true);
   $('#msair').onclick = () => sair(false);
 };
-function aplicarTema(t) { if (t === 'auto') delete document.documentElement.dataset.tema; else document.documentElement.dataset.tema = t; LS.set('tema', t); }
+const escuroSistema = () => !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+function temaEfetivo() { const t = document.documentElement.dataset.tema; return t || (escuroSistema() ? 'escuro' : 'claro'); }
+function iconeTema() { const b = $('#btema'); if (!b) return; const e = temaEfetivo() === 'escuro'; b.innerHTML = ic(e ? 'sol' : 'lua'); b.title = e ? 'Usar tema claro' : 'Usar tema escuro'; }
+function aplicarTema(t) {
+  if (t === 'auto') delete document.documentElement.dataset.tema; else document.documentElement.dataset.tema = t;
+  LS.set('tema', t); iconeTema();
+  const m = $('meta[name="theme-color"]'); if (m) m.content = temaEfetivo() === 'escuro' ? '#0A111D' : '#0E1A2B';
+}
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!document.documentElement.dataset.tema) aplicarTema('auto'); }); } catch (e) {}
 
 // ---------- ações ----------
 function redesenhar() { ordenar(); rotaSemCarregar(); badges(); }
