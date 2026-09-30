@@ -38,6 +38,10 @@ const IC = {
   externo: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
   doc: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/>',
   email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  enviar: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+  som: '<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
+  fila: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h5"/><circle cx="16.5" cy="15" r="2.2"/>',
   junta: '<path d="M12 3v17M8 20h8"/><path d="M4 7h16"/><path d="M6 7l-3 6a3 3 0 0 0 6 0z"/><path d="M18 7l-3 6a3 3 0 0 0 6 0z"/>',
   tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>'
 };
@@ -144,8 +148,9 @@ async function sair(expirou) {
 // ---------- dados ----------
 async function carregar(forcar) {
   if (!forcar && S.dados && Date.now() - S.carregadoEm < 45000) return S.dados;
-  const [d, j] = await Promise.all([api('listar', { filtro: 'todos' }), api('jrf_listar').catch(() => null)]);
+  const [d, j, o] = await Promise.all([api('listar', { filtro: 'todos' }), api('jrf_listar').catch(() => null), apiAg('ordens').catch(() => null)]);
   d.jrf = j || (S.dados && S.dados.jrf) || { processos: [], sessoes: [], juris_total: 0 };
+  d.ordens = o || (S.dados && S.dados.ordens) || [];
   S.dados = d; S.carregadoEm = Date.now(); LS.set('dados', d);
   return d;
 }
@@ -166,7 +171,8 @@ const ROTAS = [
   { k: 'prazos', t: 'Prazos', ic: 'prazo' },
   { k: 'tarefas', t: 'Tarefas', ic: 'tarefa' },
   { k: 'memorandos', t: 'Memorandos', tc: 'Memos', ic: 'memo' },
-  { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' }
+  { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' },
+  { k: 'ordens', t: 'Fila do agente', ic: 'fila', lat: true }
 ];
 function iniciarApp() {
   const eu = S.eu || {};
@@ -176,12 +182,14 @@ function iniciarApp() {
     '<div class="nav-tit">Acesso rápido</div><nav class="nav">' + LINKS.map((l) => '<a href="' + l.url + '" target="_blank" rel="noopener" title="' + esc(l.d) + '">' + ic(l.ic) + '<span>' + esc(l.t) + '</span>' + ic('externo', 's ext') + '</a>').join('') + '</nav>' +
     '<div class="rodape"><div class="av">' + av + '</div><div style="min-width:0"><div class="n">' + esc(eu.nome || '') + '</div><div class="e">' + esc(eu.email || '') + '</div></div><button title="Sair" id="bsair">' + ic('sair') + '</button></div></aside>' +
     '<main class="main"><header class="topo"><h1 id="titulo"></h1><div class="acoes"><button class="btn fant ico" id="btema" title="Alternar tema claro/escuro"></button><button class="btn fant ico" id="batual" title="Atualizar">' + ic('atual') + '</button><button class="btn pri sm" id="bnovo">' + ic('mais2', 's') + '<span>Novo prazo</span></button></div></header><div class="conteudo" id="conteudo"></div></main>' +
-    '<nav class="tabbar">' + ROTAS.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + (r.tc || r.t) + '</span><span class="bdg-slot"></span></a>').join('') + '<a href="#/mais" data-r="mais">' + ic('mais') + '<span>Mais</span></a></nav>';
+    '<nav class="tabbar">' + ROTAS.filter((r) => !r.lat).map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + (r.tc || r.t) + '</span><span class="bdg-slot"></span></a>').join('') + '<a href="#/mais" data-r="mais">' + ic('mais') + '<span>Mais</span></a></nav>' +
+    '<button class="fab" id="bvoz" title="Falar com o assistente" aria-label="Falar com o assistente">' + ic('mic') + '</button>';
   $('#bsair').onclick = () => sair(false);
+  $('#bvoz').onclick = () => abrirAssistente(true);
   $('#batual').onclick = () => rota(true);
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
-  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : editarPrazo());
+  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : editarPrazo());
   if (!location.hash || location.hash === '#/') location.hash = '#/inicio';
   rota();
 }
@@ -193,13 +201,14 @@ function badges() {
   const set = (k, n, r) => $$('a[data-r="' + k + '"] .bdg-slot').forEach((e) => { e.innerHTML = n ? '<span class="bdg' + (r ? ' r' : '') + '">' + n + '</span>' : ''; });
   const jv = ((S.dados && S.dados.jrf && S.dados.jrf.processos) || []).filter((p) => !['JULGADO', 'ARQUIVADO'].includes(p.status) && p.prazo_voto && p.prazo_voto <= addDias(h, 3)).length;
   set('prazos', urg, true); set('tarefas', tar, true); set('memorandos', mem, false); set('junta', jv, true);
+  set('ordens', ((S.dados && S.dados.ordens) || []).filter((o) => ['AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)).length, true);
 }
 let rodando = 0;
 async function rota(forcar) {
   const [k, arg] = (location.hash.replace(/^#\//, '') || 'inicio').split('/');
   const v = VIEWS[k] ? k : 'inicio';
   $$('a[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === v));
-  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : 'Novo prazo';
+  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : v === 'ordens' ? 'Nova ordem' : 'Novo prazo';
   $('#conteudo').classList.remove('largo');
   const meu = ++rodando;
   if (!S.dados) $('#conteudo').innerHTML = '<div class="carregando"><div class="spin"></div></div>';
@@ -273,9 +282,11 @@ VIEWS.inicio = function () {
     (tab.slice(0, 7).map(itemTarefa).join('') || vazio('Nenhuma tarefa aberta.')) + '</div></div></div>' +
     '<div class="sec-tit">Junta de Recursos Fiscais <a class="btn fant sm" href="#/junta" style="margin-left:auto">Abrir</a></div>' + cardProxSessao() +
     (() => { const l = jProc().filter(jrfAberto).slice(0, 5); return l.length ? '<div class="card" style="margin-top:12px"><div class="lista">' + l.map(itemJrf).join('') + '</div></div>' : ''; })() +
+    (() => { const l = ordensLista().filter(ordemAberta); return l.length ? '<div class="sec-tit">Fila do agente <span class="bdg">' + l.length + '</span><a class="btn fant sm" href="#/ordens" style="margin-left:auto">Abrir</a></div><div class="card"><div class="lista">' + l.slice(0, 4).map(itemOrdem).join('') + '</div></div>' : ''; })() +
     '<div class="rodape-app">TJRS 1º e 2º graus · TRF4 1º e 2º graus · Junta de Recursos Fiscais</div>';
   $$('[data-go]').forEach((e) => { e.onclick = () => { const g = e.dataset.go; if (g === 'memo') { location.hash = '#/memorandos'; return; } Object.assign(S.f, { sit: 'abertos', trib: '', marca: g, q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; }; });
   ligarListas($('#conteudo')); ligarJunta($('#conteudo'));
+  $$('[data-o]').forEach((e) => { e.onclick = () => verOrdem(ordensLista().find((o) => o.id === e.dataset.o)); });
 };
 VIEWS.prazos = function () {
   titulo('Prazos');
@@ -384,6 +395,7 @@ VIEWS.mais = function () {
   const tema = document.documentElement.dataset.tema || 'auto';
   $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px"><div class="lista"><div class="item"><div class="av">' + (eu.foto ? '<img src="' + esc(eu.foto) + '" alt="" referrerpolicy="no-referrer">' : '') + '</div><div class="mid"><div class="t">' + esc(eu.nome || '') + '</div><div class="d">' + esc(eu.email || '') + '</div></div></div>' +
     '<div class="item">' + ic(temaEfetivo() === 'escuro' ? 'lua' : 'sol') + '<div class="mid"><div class="t">Tema</div><div class="seg" style="margin-top:8px">' + [['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map((o) => '<button data-tema="' + o[0] + '" class="' + (tema === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div></div>' +
+    '<a class="item clic" href="#/ordens">' + ic('fila') + '<div class="mid"><div class="t">Fila do agente</div><div class="d">Memorandos, minutas e documentos pedidos por voz</div></div></a>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
     '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>' +
     '<div class="sec-tit">Acesso rápido</div><div class="card"><div class="lista">' + LINKS.map((l) => '<a class="item clic" href="' + l.url + '" target="_blank" rel="noopener">' + ic(l.ic) + '<div class="mid"><div class="t">' + esc(l.t) + '</div><div class="d">' + esc(l.d) + '</div></div>' + ic('externo', 's') + '</a>').join('') + '</div></div>';
@@ -617,6 +629,143 @@ function editarJuris(j) {
   modal({ titulo: j.id ? 'Editar decisão' : 'Nova decisão na jurisprudência', corpo, largo: true, botoes });
 }
 
+// ---------- Assistente de voz e fila de ordens ----------
+const API_AG = 'https://emerim.app.n8n.cloud/webhook/pgm-agente';
+const OTIPO = { MEMORANDO: 'Memorando', MINUTAIA: 'MinutaIA', EPROC_DOCUMENTO: 'eproc', OUTRO: 'Outra' };
+const OST = { NOVA: 'Na fila', EM_EXECUCAO: 'Em execução', AGUARDANDO_CONFIRMACAO: 'Aguardando sua confirmação', CONCLUIDA: 'Concluída', CANCELADA: 'Cancelada', ERRO: 'Com erro' };
+const ordensLista = () => (S.dados && S.dados.ordens) || [];
+const ordemAberta = (o) => ['NOVA', 'EM_EXECUCAO', 'AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status);
+async function apiAg(acao, dados) {
+  const r = await fetch(API_AG, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pgm-token': S.token || '' }, body: JSON.stringify(Object.assign({ acao, token: S.token }, dados || {})) });
+  let j = null; try { j = await r.json(); } catch (e) {}
+  if (r.status === 401 || (j && j.erro === 'sessao')) { sair(true); throw new Error('Sua sessão expirou. Entre de novo.'); }
+  if (!r.ok || !j || j.ok === false) throw new Error((j && j.erro) || 'Não foi possível falar com o assistente.');
+  return j.dados;
+}
+S.chat = [];
+S.falar = LS.get('falar', true);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let reco = null, ouvindo = false;
+function falar(txt) {
+  if (!S.falar || !window.speechSynthesis) return;
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(txt); u.lang = 'pt-BR'; const v = speechSynthesis.getVoices().find((x) => /pt[-_]BR/i.test(x.lang)); if (v) u.voice = v; u.rate = 1.05; speechSynthesis.speak(u); } catch (e) {}
+}
+function abrirAssistente(iniciarOuvindo) {
+  if ($('#assist')) { if (iniciarOuvindo) ouvir(); return; }
+  const p = document.createElement('div'); p.id = 'assist'; p.className = 'veu';
+  p.innerHTML = '<div class="modal assist"><div class="mh"><h3>Assistente</h3><label class="som" title="Ler as respostas em voz alta"><input type="checkbox" id="afalar"' + (S.falar ? ' checked' : '') + '>' + ic('som', 's') + '</label><button class="btn fant ico sm x" data-f>' + ic('x') + '</button></div>' +
+    '<div class="mb"><div class="chat" id="achat"></div></div>' +
+    '<div class="mf acomp"><button class="mic" id="amic" title="Falar">' + ic('mic') + '</button><textarea class="inp" id="atxt" rows="1" placeholder="' + (SR ? 'Toque no microfone e fale, ou digite aqui…' : 'Digite o comando (ou use o ditado do teclado)…') + '"></textarea><button class="btn pri ico" id="aenv" title="Enviar">' + ic('enviar', 's') + '</button></div></div>';
+  document.body.appendChild(p);
+  const fechar = () => { pararOuvir(); try { speechSynthesis.cancel(); } catch (e) {} p.remove(); };
+  p.addEventListener('click', (e) => { if (e.target === p || e.target.closest('[data-f]')) fechar(); });
+  $('#afalar').onchange = (e) => { S.falar = e.target.checked; LS.set('falar', S.falar); if (!S.falar) try { speechSynthesis.cancel(); } catch (x) {} };
+  $('#amic').onclick = () => (ouvindo ? pararOuvir() : ouvir());
+  const t = $('#atxt');
+  t.oninput = () => { t.style.height = 'auto'; t.style.height = Math.min(140, t.scrollHeight) + 'px'; };
+  t.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarComando(); } };
+  $('#aenv').onclick = () => enviarComando();
+  desenharChat();
+  if (iniciarOuvindo && SR) ouvir(); else if (window.innerWidth > 760) t.focus();
+}
+function desenharChat() {
+  const c = $('#achat'); if (!c) return;
+  if (!S.chat.length) {
+    c.innerHTML = '<div class="dicas"><p class="mut pq">Exemplos do que você pode pedir:</p>' + ['O que vence esta semana?', 'No processo terminado em 0019, manda memorando para a Fazenda com cópia da decisão e um resumo do processo.', 'No processo do Brocker, faz no MinutaIA uma impugnação com o prompt: …', 'Cria uma tarefa para revisar as contrarrazões na sexta.', 'Quando é a próxima sessão da Junta e quais processos meus estão pautados?']
+      .map((x) => '<button class="chip-dica">' + esc(x) + '</button>').join('') + '<p class="pp mut" style="margin-top:12px">Memorandos, minutas e documentos do eproc entram na fila de ordens e só são enviados depois da sua confirmação.</p></div>';
+    $$('.chip-dica', c).forEach((b) => { b.onclick = () => { const t = $('#atxt'); t.value = b.textContent.replace('…', ''); t.focus(); t.oninput(); }; });
+    return;
+  }
+  c.innerHTML = S.chat.map((m) => '<div class="bal ' + (m.role === 'user' ? 'eu' : 'ia') + (m.erro ? ' erro' : '') + '">' + esc(m.content) +
+    (m.extras ? '<div class="ext">' + m.extras + '</div>' : '') + '</div>').join('') + (S.pensando ? '<div class="bal ia pens"><span></span><span></span><span></span></div>' : '');
+  c.scrollTop = c.scrollHeight; const mb = c.parentElement; mb.scrollTop = mb.scrollHeight;
+}
+function ouvir() {
+  if (!SR) { toast('Este navegador não reconhece voz. Use o microfone do teclado para ditar.', true); $('#atxt') && $('#atxt').focus(); return; }
+  try { speechSynthesis.cancel(); } catch (e) {}
+  reco = new SR(); reco.lang = 'pt-BR'; reco.interimResults = true; reco.continuous = false; reco.maxAlternatives = 1;
+  const t = $('#atxt'), base = t.value ? t.value.trim() + ' ' : '';
+  let final = '';
+  reco.onresult = (e) => { let parcial = ''; for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) final += r[0].transcript; else parcial += r[0].transcript; } t.value = base + final + parcial; t.oninput(); };
+  reco.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Permita o uso do microfone para este site.', true); else if (e.error !== 'no-speech' && e.error !== 'aborted') toast('Não consegui ouvir (' + e.error + ').', true); };
+  reco.onend = () => { const enviar = ouvindo && !!final.trim(); ouvindo = false; $('#amic') && $('#amic').classList.remove('on'); if (enviar) enviarComando(); };
+  ouvindo = true; $('#amic').classList.add('on');
+  try { reco.start(); } catch (e) { ouvindo = false; $('#amic').classList.remove('on'); }
+}
+function pararOuvir() { if (reco && ouvindo) { ouvindo = false; try { reco.stop(); } catch (e) {} } $('#amic') && $('#amic').classList.remove('on'); }
+async function enviarComando() {
+  const t = $('#atxt'); const texto = (t.value || '').trim(); if (!texto || S.pensando) return;
+  t.value = ''; t.oninput();
+  const historico = S.chat.filter((m) => !m.erro).slice(-6).map((m) => ({ role: m.role, content: m.content }));
+  S.chat.push({ role: 'user', content: texto }); S.pensando = true; desenharChat();
+  try {
+    const d = await apiAg('comando', { texto, historico });
+    const ex = [];
+    if (d.tarefas && d.tarefas.length) ex.push('<span class="chip ok">' + d.tarefas.length + ' tarefa(s) criada(s)</span>');
+    if (d.ordens && d.ordens.length) ex.push('<a class="chip info" href="#/ordens">' + d.ordens.length + ' ordem(ns) na fila</a>');
+    if (d.prazos) ex.push('<span class="chip">' + d.prazos + ' prazo(s) atualizado(s)</span>');
+    if (d.junta) ex.push('<span class="chip">' + d.junta + ' processo(s) da Junta atualizado(s)</span>');
+    if (d.ignoradas && d.ignoradas.length) ex.push('<span class="chip warn">não feito: ' + esc(d.ignoradas.join(', ')) + '</span>');
+    S.chat.push({ role: 'assistant', content: d.resposta, extras: ex.join('') });
+    falar(d.resposta);
+    if (ex.length) { S.carregadoEm = 0; carregar(true).then(() => { rotaSemCarregar(); badges(); }).catch(() => {}); }
+  } catch (e) { S.chat.push({ role: 'assistant', content: e.message, erro: true }); }
+  S.pensando = false; desenharChat();
+  $$('#achat a[href="#/ordens"]').forEach((a) => { a.onclick = () => { const v = $('#assist'); if (v) v.remove(); }; });
+}
+function itemOrdem(o) {
+  const cls = o.status === 'AGUARDANDO_CONFIRMACAO' ? 'warn' : o.status === 'ERRO' ? 'bad' : o.status === 'CONCLUIDA' ? 'ok' : o.status === 'EM_EXECUCAO' ? 'info' : '';
+  return '<div class="item clic" data-o="' + esc(o.id) + '"><span class="dot ' + cls + '"></span><div class="mid"><div class="t">' + esc(o.titulo) + '</div>' +
+    '<div class="d">' + esc(o.instrucoes || (o.dados && o.dados.prompt_minutaia) || o.comando || '') .slice(0, 400) + '</div>' +
+    '<div class="tags"><span class="chip nav">' + esc(OTIPO[o.tipo] || o.tipo) + '</span>' + (o.processo ? '<span class="chip">' + esc(o.processo) + '</span>' : '') + '<span class="chip ' + cls + '">' + esc(OST[o.status] || o.status) + '</span></div></div>' +
+    '<div class="dir"><span class="pp mut">' + esc(new Date(o.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) + '</span></div></div>';
+}
+VIEWS.ordens = function () {
+  titulo('Fila do agente');
+  const l = ordensLista();
+  const bloco = (tit, fn, vaz) => { const x = l.filter(fn); return x.length || vaz ? '<div class="sec-tit">' + tit + ' <span class="bdg">' + x.length + '</span></div><div class="card"><div class="lista">' + (x.map(itemOrdem).join('') || vazio(vaz || '', 'fila')) + '</div></div>' : ''; };
+  $('#conteudo').innerHTML = '<div class="card aviso" style="margin-top:14px"><div class="ico">' + ic('fila', 's') + '</div><div><b>Como a fila funciona</b><p>Memorandos, minutas do MinutaIA e documentos do eproc são executados pelo Claude no seu computador, com você presente para os logins. Para executar, abra o Claude no projeto "Procurador PGM" e diga <i>“executar a fila da PGM”</i>. Nada é enviado, peticionado ou protocolado sem a sua confirmação.</p></div></div>' +
+    bloco('Aguardando sua confirmação', (o) => o.status === 'AGUARDANDO_CONFIRMACAO') + bloco('Com erro', (o) => o.status === 'ERRO') + bloco('Em execução', (o) => o.status === 'EM_EXECUCAO') +
+    bloco('Na fila', (o) => o.status === 'NOVA', 'Nenhuma ordem na fila. Use o microfone para pedir.') + bloco('Concluídas e canceladas (30 dias)', (o) => ['CONCLUIDA', 'CANCELADA'].includes(o.status));
+  $$('[data-o]').forEach((e) => { e.onclick = () => verOrdem(ordensLista().find((o) => o.id === e.dataset.o)); });
+};
+function verOrdem(o) {
+  if (!o) return;
+  const L = (r, v) => v ? '<dt>' + r + '</dt><dd>' + v + '</dd>' : '';
+  const dd = o.dados || {};
+  const corpo = '<div class="tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="chip nav">' + esc(OTIPO[o.tipo]) + '</span><span class="chip">' + esc(OST[o.status]) + '</span></div>' +
+    '<dl class="det">' + L('Processo', esc(o.processo)) + L('Secretaria', esc(dd.secretaria)) + L('Anexar decisão', o.tipo === 'MEMORANDO' ? (dd.anexar_decisao ? 'Sim' : 'Não') : '') +
+    L('Instruções', esc(o.instrucoes)) + L('Prompt do MinutaIA', esc(dd.prompt_minutaia)) + L('Comando original', o.comando ? '<i>“' + esc(o.comando) + '”</i>' : '') + L('Resultado', esc(o.resultado)) +
+    L('Criada em', esc(new Date(o.criado_em).toLocaleString('pt-BR'))) + '</dl>' +
+    (o.rascunho ? '<div class="sec-tit" style="margin-top:16px">Rascunho</div><div class="ementa-box">' + esc(o.rascunho) + '</div>' : '');
+  const botoes = [{ txt: 'Fechar', valor: null }];
+  if (o.rascunho) botoes.unshift({ txt: 'Copiar rascunho', ic: 'doc', cls: 'fant', acao: async () => { try { await navigator.clipboard.writeText(o.rascunho); toast('Rascunho copiado.'); } catch (e) { toast('Não foi possível copiar.', true); } return false; } });
+  if (['NOVA', 'AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)) botoes.unshift({ txt: 'Cancelar ordem', ic: 'x', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Cancelar ordem', 'Cancelar "' + o.titulo + '"?', 'Cancelar ordem', true))) return false; const r = await apiAg('ordem_cancelar', { id: o.id }); if (r) substituir(S.dados.ordens, r); redesenhar(); toast('Ordem cancelada.'); } });
+  modal({ titulo: 'Ordem', corpo, largo: true, botoes });
+}
+function editarOrdem(pre) {
+  pre = pre || {}; const dd = pre.dados || {};
+  const memo = pre.tipo === 'MEMORANDO', minuta = pre.tipo === 'MINUTAIA';
+  const corpo = '<form class="form" id="fo" autocomplete="off">' +
+    '<label>Processo<input class="inp" name="processo" value="' + esc(pre.processo || '') + '"></label>' +
+    (memo ? '<label>Secretaria<input class="inp" name="secretaria" list="secs2" value="' + esc(dd.secretaria || 'Fazenda') + '"><datalist id="secs2">' + SECRETARIAS.map((s) => '<option value="' + esc(s) + '">').join('') + '</datalist></label>' +
+      '<label class="linha full"><input type="checkbox" name="anexar_decisao"' + (dd.anexar_decisao !== false ? ' checked' : '') + '> Anexar cópia da decisão (PDF do eproc)</label>' : '<span></span>') +
+    (minuta ? '<label class="full">Prompt para o MinutaIA<textarea class="inp" name="prompt_minutaia" style="min-height:140px" placeholder="Ex.: elabore impugnação à exceção de pré-executividade sustentando…">' + esc(dd.prompt_minutaia || '') + '</textarea></label>' : '') +
+    '<label class="full">' + (memo ? 'O que o memorando deve pedir (além do padrão)' : 'Instruções adicionais') + '<textarea class="inp" name="instrucoes" style="min-height:90px">' + esc(pre.instrucoes || '') + '</textarea></label></form>' +
+    '<p class="pp mut">A ordem vai para a fila e é executada pelo Claude no seu computador; nada é enviado sem a sua confirmação.</p>';
+  modal({ titulo: memo ? 'Pedir memorando' : minuta ? 'Pedir minuta no MinutaIA' : 'Nova ordem', corpo, largo: true, botoes: [{ txt: 'Cancelar', valor: null }, { txt: 'Colocar na fila', cls: 'pri', ic: 'check', acao: async (v) => {
+    const f = $('#fo', v), d = Object.fromEntries(new FormData(f).entries());
+    if (minuta && !String(d.prompt_minutaia || '').trim()) { toast('Escreva o prompt para o MinutaIA.', true); return false; }
+    const ordem = { tipo: pre.tipo || 'OUTRO', processo: d.processo, prazo_id: pre.prazo_id || null, instrucoes: d.instrucoes,
+      titulo: (memo ? 'Memorando à ' + (d.secretaria || 'Fazenda') : minuta ? 'Minuta no MinutaIA' : 'Ordem') + (d.processo ? ' – ' + d.processo : ''),
+      dados: { secretaria: memo ? d.secretaria : null, anexar_decisao: memo ? !!(f.anexar_decisao && f.anexar_decisao.checked) : false, prompt_minutaia: minuta ? d.prompt_minutaia : null } };
+    const r = await apiAg('ordem_criar', { ordem });
+    S.dados.ordens = [r].concat(ordensLista());
+    if (memo && pre.prazo_id) { const p = prazos().find((x) => x.id === pre.prazo_id); if (p && p.memo_status === 'NAO') { try { const u = await api('prazo_salvar', { prazo: Object.assign({}, p, { memo_status: 'A_ENVIAR', memo_secretaria: d.secretaria || 'Fazenda', memo_retorno: p.memo_retorno || (p.fim ? addDias(p.fim, -7) : null) }) }); substituir(S.dados.prazos, u); } catch (e) {} } }
+    redesenhar(); toast('Ordem colocada na fila.');
+  } }] });
+}
+
 // ---------- ações ----------
 function redesenhar() { ordenar(); rotaSemCarregar(); badges(); }
 function rotaSemCarregar() { const [k, arg] = (location.hash.replace(/^#\//, '') || 'inicio').split('/'); (VIEWS[k] || VIEWS.inicio)(arg); }
@@ -633,7 +782,7 @@ function verPrazo(id) {
     '<div class="acoesrap">' + (aberto(p)
       ? (p.status === 'PENDENTE' ? '<button class="btn sm" data-st="EM_ELABORACAO">Em elaboração</button>' : '<button class="btn sm" data-st="PENDENTE">Voltar para "a fazer"</button>') + '<button class="btn sm" data-st="PROTOCOLADO">' + ic('check', 's') + 'Protocolado</button><button class="btn sm" data-st="CIENCIA">Ciência dada</button><button class="btn sm fant" data-st="ARQUIVADO">Arquivar</button>'
       : '<button class="btn sm" data-st="PENDENTE">Reabrir prazo</button>') +
-    '<button class="btn sm fant" data-nt>' + ic('tarefa', 's') + 'Criar tarefa</button></div>' +
+    '<button class="btn sm fant" data-nt>' + ic('tarefa', 's') + 'Criar tarefa</button><button class="btn sm fant" data-om>' + ic('memo', 's') + 'Pedir memorando</button><button class="btn sm fant" data-omi>' + ic('ed', 's') + 'Pedir minuta (MinutaIA)</button></div>' +
     '<p class="pp mut" style="margin:10px 0 0">Atualizado em ' + esc(new Date(p.atualizado_em).toLocaleString('pt-BR')) + (p.atualizado_por ? ' por ' + esc(p.atualizado_por) : '') + '</p>';
   const pr = modal({ titulo: p.processo, corpo, largo: true, botoes: [
     { txt: 'Excluir', ic: 'lixo', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Excluir prazo', 'Excluir definitivamente o prazo do processo ' + p.processo + '? Para apenas tirar da lista, use Arquivar.', 'Excluir', true))) return false; await api('prazo_excluir', { id: p.id }); S.dados.prazos = S.dados.prazos.filter((x) => x.id !== p.id); redesenhar(); toast('Prazo excluído.'); } },
@@ -643,6 +792,8 @@ function verPrazo(id) {
   const v = $$('.veu').pop();
   $$('[data-st]', v).forEach((b) => { b.onclick = async () => { b.disabled = true; try { const r = await api('prazo_status', { id: p.id, status: b.dataset.st }); substituir(S.dados.prazos, r); redesenhar(); v.remove(); toast('Situação: ' + STATUS[r.status] + '.'); } catch (e) { b.disabled = false; toast(e.message, true); } }; });
   $('[data-nt]', v).onclick = () => { v.remove(); editarTarefa({ processo: p.processo, prazo_id: p.id, vencimento: p.fim ? addDias(p.fim, -2) : '' }); };
+  $('[data-om]', v).onclick = () => { v.remove(); editarOrdem({ tipo: 'MEMORANDO', processo: p.processo, prazo_id: p.id, dados: { secretaria: p.memo_secretaria || 'Fazenda', anexar_decisao: true } }); };
+  $('[data-omi]', v).onclick = () => { v.remove(); editarOrdem({ tipo: 'MINUTAIA', processo: p.processo, prazo_id: p.id, instrucoes: p.providencia ? 'Peça: ' + p.providencia : '' }); };
   pr.then((r) => { if (r === 'editar') editarPrazo(p); });
 }
 function editarPrazo(p) {

@@ -257,6 +257,36 @@ details.teor div{white-space:pre-wrap;font-size:13.5px;line-height:1.55;margin-t
 a.lnk{color:var(--info);word-break:break-all}
 @media (max-width:420px){.tabbar a{font-size:9.5px}.tabbar svg.i{width:21px;height:21px}}
 @media (max-width:560px){.jrf-prox{flex-wrap:wrap}.jrf-prox>.chip{margin-left:52px}}
+
+.fab{position:fixed;right:22px;bottom:22px;z-index:40;width:58px;height:58px;border-radius:50%;border:0;background:var(--gold);color:#fff;display:grid;place-items:center;box-shadow:0 8px 24px rgba(201,144,28,.45),var(--sh-lg);cursor:pointer;transition:transform .12s}
+.fab:hover{transform:scale(1.05)}.fab svg.i{width:26px;height:26px}
+@media (max-width:900px){.fab{right:16px;bottom:calc(var(--tab) + 14px + env(safe-area-inset-bottom));width:54px;height:54px}}
+.modal.assist{max-width:560px;display:flex;flex-direction:column;height:min(640px,86vh);overflow:hidden}
+.modal.assist .mb{flex:1;overflow:auto;padding:8px 16px}
+.modal.assist .mh .som{margin-left:auto;display:flex;align-items:center;gap:4px;color:var(--mut);cursor:pointer;font-size:12px}
+.modal.assist .mh .som input{accent-color:var(--gold)}
+.modal.assist .mh .x{margin-left:4px}
+.chat{display:flex;flex-direction:column;gap:10px;padding:4px 0 8px}
+.bal{max-width:88%;padding:10px 13px;border-radius:14px;font-size:14.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.bal.eu{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:4px}
+.bal.ia{align-self:flex-start;background:var(--surface-2);border:1px solid var(--line);border-bottom-left-radius:4px}
+.bal.erro{border-color:var(--bad);color:var(--bad)}
+.bal .ext{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.bal.pens{display:flex;gap:4px;padding:14px}
+.bal.pens span{width:7px;height:7px;border-radius:50%;background:var(--mut-2);animation:pisca 1s infinite}
+.bal.pens span:nth-child(2){animation-delay:.2s}.bal.pens span:nth-child(3){animation-delay:.4s}
+@keyframes pisca{50%{opacity:.25}}
+.dicas{padding:4px 0}.dicas .chip-dica{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;border-radius:11px;border:1px solid var(--line-2);background:var(--surface);font-size:13.5px;color:var(--txt);cursor:pointer}
+.dicas .chip-dica:hover{border-color:var(--gold)}
+.mf.acomp{align-items:flex-end;justify-content:stretch;gap:8px;position:static}
+.mf.acomp textarea{flex:1;min-height:44px;height:44px;resize:none;padding:11px 12px}
+.mic{width:48px;height:48px;border-radius:50%;border:0;flex:none;background:var(--gold-soft);color:var(--gold);display:grid;place-items:center;cursor:pointer}
+.mic.on{background:var(--bad);color:#fff;animation:pulso 1.2s infinite}
+@keyframes pulso{0%{box-shadow:0 0 0 0 rgba(192,38,26,.45)}70%{box-shadow:0 0 0 14px rgba(192,38,26,0)}100%{box-shadow:0 0 0 0 rgba(192,38,26,0)}}
+.card.aviso{display:flex;gap:14px;padding:14px 16px;align-items:flex-start}
+.card.aviso .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--info-soft);color:var(--info);flex:none}
+.card.aviso p{margin:4px 0 0;font-size:13.5px;color:var(--mut);line-height:1.5}
+a.chip{text-decoration:none}
 </style>
 </head>
 <body>
