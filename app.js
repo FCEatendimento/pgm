@@ -670,20 +670,40 @@ S.chat = [];
 S.falar = LS.get('falar', true);
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let reco = null, ouvindo = false;
-function falar(txt) {
-  if (!S.falar || !window.speechSynthesis) return;
+let audioVoz = null, audioUrl = null, falaSeq = 0;
+function calar() {
+  falaSeq++;
+  try { speechSynthesis.cancel(); } catch (e) {}
+  if (audioVoz) { try { audioVoz.pause(); } catch (e) {} audioVoz = null; }
+  if (audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl = null; }
+}
+async function falar(txt) {
+  if (!S.falar || !txt) return;
+  calar(); const seq = falaSeq;
+  try {
+    const r = await fetch(API_AG, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pgm-token': S.token || '' }, body: JSON.stringify({ acao: 'falar', token: S.token, texto: txt }) });
+    const tipo = r.headers.get('content-type') || '';
+    if (!r.ok || !/audio/.test(tipo)) throw new Error('sem audio');
+    const blob = await r.blob();
+    if (seq !== falaSeq || !$('#assist')) return;
+    audioUrl = URL.createObjectURL(blob); audioVoz = new Audio(audioUrl);
+    await audioVoz.play();
+  } catch (e) { if (seq === falaSeq && $('#assist')) falarNavegador(txt); }
+}
+function falarNavegador(txt) {
+  if (!window.speechSynthesis) return;
   try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(txt); u.lang = 'pt-BR'; const v = speechSynthesis.getVoices().find((x) => /pt[-_]BR/i.test(x.lang)); if (v) u.voice = v; u.rate = 1.05; speechSynthesis.speak(u); } catch (e) {}
 }
 function abrirAssistente(iniciarOuvindo) {
   if ($('#assist')) { if (iniciarOuvindo) ouvir(); return; }
   const p = document.createElement('div'); p.id = 'assist'; p.className = 'veu';
-  p.innerHTML = '<div class="modal assist"><div class="mh"><h3>Assistente</h3><label class="som" title="Ler as respostas em voz alta"><input type="checkbox" id="afalar"' + (S.falar ? ' checked' : '') + '>' + ic('som', 's') + '</label><button class="btn fant ico sm x" data-f>' + ic('x') + '</button></div>' +
+  p.innerHTML = '<div class="modal assist"><div class="mh"><h3>Assistente</h3><label class="som" title="Responder em áudio quando o comando for falado"><input type="checkbox" id="afalar"' + (S.falar ? ' checked' : '') + '>' + ic('som', 's') + '</label><button class="btn fant ico sm x" data-f>' + ic('x') + '</button></div>' +
     '<div class="mb"><div class="chat" id="achat"></div></div>' +
     '<div class="mf acomp"><button class="mic" id="amic" title="Falar">' + ic('mic') + '</button><textarea class="inp" id="atxt" rows="1" placeholder="' + (SR ? 'Toque no microfone e fale, ou digite aqui…' : 'Digite o comando (ou use o ditado do teclado)…') + '"></textarea><button class="btn pri ico" id="aenv" title="Enviar">' + ic('enviar', 's') + '</button></div></div>';
   document.body.appendChild(p);
-  const fechar = () => { pararOuvir(); try { speechSynthesis.cancel(); } catch (e) {} p.remove(); };
+  const fechar = () => { pararOuvir(); calar(); p.remove(); };
   p.addEventListener('click', (e) => { if (e.target === p || e.target.closest('[data-f]')) fechar(); });
-  $('#afalar').onchange = (e) => { S.falar = e.target.checked; LS.set('falar', S.falar); if (!S.falar) try { speechSynthesis.cancel(); } catch (x) {} };
+  $('#afalar').onchange = (e) => { S.falar = e.target.checked; LS.set('falar', S.falar); if (!S.falar) calar(); };
   $('#amic').onclick = () => (ouvindo ? pararOuvir() : ouvir());
   const t = $('#atxt');
   t.oninput = () => { t.style.height = 'auto'; t.style.height = Math.min(140, t.scrollHeight) + 'px'; };
@@ -695,7 +715,7 @@ function abrirAssistente(iniciarOuvindo) {
 function desenharChat() {
   const c = $('#achat'); if (!c) return;
   if (!S.chat.length) {
-    c.innerHTML = '<div class="dicas"><p class="mut pq">Exemplos do que você pode pedir:</p>' + ['O que vence esta semana?', 'No processo terminado em 0019, manda memorando para a Fazenda com cópia da decisão e um resumo do processo.', 'No processo do Brocker, faz no MinutaIA uma impugnação com o prompt: …', 'Cria uma tarefa para revisar as contrarrazões na sexta.', 'Quando é a próxima sessão da Junta e quais processos meus estão pautados?']
+    c.innerHTML = '<div class="dicas"><p class="mut pq">Exemplos do que você pode pedir:</p>' + ['O que vence esta semana?', 'No processo 5002388, manda memorando para a Fazenda com cópia da decisão e um resumo do processo.', 'No processo do Brocker, faz no MinutaIA uma impugnação com o prompt: …', 'Cria uma tarefa para revisar as contrarrazões na sexta.', 'Quando é a próxima sessão da Junta e quais processos meus estão pautados?']
       .map((x) => '<button class="chip-dica">' + esc(x) + '</button>').join('') + '<p class="pp mut" style="margin-top:12px">Memorandos, minutas e documentos do eproc entram na fila de ordens e só são enviados depois da sua confirmação.</p></div>';
     $$('.chip-dica', c).forEach((b) => { b.onclick = () => { const t = $('#atxt'); t.value = b.textContent.replace('…', ''); t.focus(); t.oninput(); }; });
     return;
@@ -706,18 +726,18 @@ function desenharChat() {
 }
 function ouvir() {
   if (!SR) { toast('Este navegador não reconhece voz. Use o microfone do teclado para ditar.', true); $('#atxt') && $('#atxt').focus(); return; }
-  try { speechSynthesis.cancel(); } catch (e) {}
+  calar();
   reco = new SR(); reco.lang = 'pt-BR'; reco.interimResults = true; reco.continuous = false; reco.maxAlternatives = 1;
   const t = $('#atxt'), base = t.value ? t.value.trim() + ' ' : '';
   let final = '';
   reco.onresult = (e) => { let parcial = ''; for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) final += r[0].transcript; else parcial += r[0].transcript; } t.value = base + final + parcial; t.oninput(); };
   reco.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Permita o uso do microfone para este site.', true); else if (e.error !== 'no-speech' && e.error !== 'aborted') toast('Não consegui ouvir (' + e.error + ').', true); };
-  reco.onend = () => { const enviar = ouvindo && !!final.trim(); ouvindo = false; $('#amic') && $('#amic').classList.remove('on'); if (enviar) enviarComando(); };
+  reco.onend = () => { const enviar = ouvindo && !!final.trim(); ouvindo = false; $('#amic') && $('#amic').classList.remove('on'); if (enviar) enviarComando(true); };
   ouvindo = true; $('#amic').classList.add('on');
   try { reco.start(); } catch (e) { ouvindo = false; $('#amic').classList.remove('on'); }
 }
 function pararOuvir() { if (reco && ouvindo) { ouvindo = false; try { reco.stop(); } catch (e) {} } $('#amic') && $('#amic').classList.remove('on'); }
-async function enviarComando() {
+async function enviarComando(porVoz) {
   const t = $('#atxt'); const texto = (t.value || '').trim(); if (!texto || S.pensando) return;
   t.value = ''; t.oninput();
   const historico = S.chat.filter((m) => !m.erro).slice(-6).map((m) => ({ role: m.role, content: m.content }));
@@ -731,7 +751,7 @@ async function enviarComando() {
     if (d.junta) ex.push('<span class="chip">' + d.junta + ' processo(s) da Junta atualizado(s)</span>');
     if (d.ignoradas && d.ignoradas.length) ex.push('<span class="chip warn">não feito: ' + esc(d.ignoradas.join(', ')) + '</span>');
     S.chat.push({ role: 'assistant', content: d.resposta, extras: ex.join('') });
-    falar(d.resposta);
+    if (porVoz === true) falar(d.fala || d.resposta);
     if (ex.length) { S.carregadoEm = 0; carregar(true).then(() => { rotaSemCarregar(); badges(); }).catch(() => {}); }
   } catch (e) { S.chat.push({ role: 'assistant', content: e.message, erro: true }); }
   S.pensando = false; desenharChat();
