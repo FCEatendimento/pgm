@@ -42,6 +42,7 @@ const IC = {
   enviar: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
   som: '<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
   fila: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h5"/><circle cx="16.5" cy="15" r="2.2"/>',
+  cghs: '<circle cx="9" cy="9" r="6"/><path d="M9 6.5v5M7.3 7.6c.3-.7 1-1 1.7-1 1 0 1.7.5 1.7 1.2 0 1.6-3.4.9-3.4 2.4 0 .7.7 1.3 1.7 1.3.8 0 1.4-.3 1.7-1"/><path d="M15.5 9.2A6 6 0 1 1 9.2 15.5"/>',
   junta: '<path d="M12 3v17M8 20h8"/><path d="M4 7h16"/><path d="M6 7l-3 6a3 3 0 0 0 6 0z"/><path d="M18 7l-3 6a3 3 0 0 0 6 0z"/>',
   tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>'
 };
@@ -176,6 +177,7 @@ const ROTAS = [
   { k: 'tarefas', t: 'Tarefas', ic: 'tarefa' },
   { k: 'memorandos', t: 'Memorandos', tc: 'Memos', ic: 'memo' },
   { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' },
+  { k: 'cghs', t: 'CGHS – Honorários', ic: 'cghs', lat: true },
   { k: 'ordens', t: 'Fila do agente', ic: 'fila', lat: true }
 ];
 function iniciarApp() {
@@ -399,6 +401,7 @@ VIEWS.mais = function () {
   const tema = document.documentElement.dataset.tema || 'auto';
   $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px"><div class="lista"><div class="item"><div class="av">' + (fotoEu(eu) ? '<img src="' + esc(fotoEu(eu)) + '" alt="" referrerpolicy="no-referrer">' : '') + '</div><div class="mid"><div class="t">' + esc(eu.nome || '') + '</div><div class="d">' + esc(eu.email || '') + '</div></div></div>' +
     '<div class="item">' + ic(temaEfetivo() === 'escuro' ? 'lua' : 'sol') + '<div class="mid"><div class="t">Tema</div><div class="seg" style="margin-top:8px">' + [['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map((o) => '<button data-tema="' + o[0] + '" class="' + (tema === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div></div>' +
+    '<a class="item clic" href="#/cghs">' + ic('cghs') + '<div class="mid"><div class="t">CGHS – Honorários</div><div class="d">Arquivos mensais dos honorários e controle online</div></div></a>' +
     '<a class="item clic" href="#/ordens">' + ic('fila') + '<div class="mid"><div class="t">Fila do agente</div><div class="d">Memorandos, minutas e documentos pedidos por voz</div></div></a>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
     '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>' +
@@ -768,6 +771,39 @@ function itemOrdem(o) {
     '<div class="tags"><span class="chip nav">' + esc(OTIPO[o.tipo] || o.tipo) + '</span>' + (o.processo ? '<span class="chip">' + esc(o.processo) + '</span>' : '') + '<span class="chip ' + cls + '">' + esc(OST[o.status] || o.status) + '</span></div></div>' +
     '<div class="dir"><span class="pp mut">' + esc(new Date(o.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) + '</span></div></div>';
 }
+// ---------- CGHS – Conselho Gestor dos Honorários Sucumbenciais ----------
+const API_CGHS = 'https://emerim.app.n8n.cloud/webhook/pgm-cghs';
+const PASTA_CGHS = 'https://drive.google.com/drive/folders/1d_RfMkQA21XiWBx-a2pGznJN6lG4njTI';
+S.cghs = null;
+async function apiCghs() {
+  const r = await fetch(API_CGHS, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pgm-token': S.token || '' }, body: JSON.stringify({ acao: 'listar', token: S.token }) });
+  let j = null; try { j = await r.json(); } catch (e) {}
+  if (r.status === 401 || (j && j.erro === 'sessao')) { sair(true); throw new Error('Sua sessão expirou. Entre de novo.'); }
+  if (!r.ok || !j || j.ok === false) throw new Error((j && j.erro) || 'Não foi possível ler a pasta do CGHS.');
+  return j.dados;
+}
+const tipoArq = (a) => { const n = String(a.nome || '').toLowerCase(), t = String(a.tipo || ''); if (/pdf/.test(t) || n.endsWith('.pdf')) return 'PDF'; if (/spreadsheet|sheet|excel|opendocument\.spreadsheet/.test(t) || /\.(ods|xlsx?|csv)$/.test(n)) return 'Planilha'; if (/folder/.test(t)) return 'Pasta'; return 'Arquivo'; };
+function htmlCghs(d) {
+  const pasta = (d.pasta && d.pasta.link) || PASTA_CGHS;
+  const ctrl = d.controle && d.controle.link;
+  const meses = d.meses || [];
+  const comArq = meses.filter((m) => (m.arquivos || []).length).length;
+  const arq = (a) => '<a class="item clic" href="' + esc(a.link) + '" target="_blank" rel="noopener">' + ic(tipoArq(a) === 'Planilha' ? 'tabela' : 'doc') + '<div class="mid"><div class="t">' + esc(a.nome) + '</div><div class="d">' + tipoArq(a) + (a.modificado ? ' · atualizado em ' + new Date(a.modificado).toLocaleDateString('pt-BR') : '') + '</div></div>' + ic('externo', 's') + '</a>';
+  return '<div class="card aviso" style="margin-top:14px"><div class="ico">' + ic('cghs', 's') + '</div><div><b>Conselho Gestor dos Honorários Sucumbenciais</b><p>Arquivos dos honorários pagos, mês a mês, lidos direto da pasta do CGHS no Google Drive (' + comArq + ' de ' + meses.length + ' meses com arquivos). Os arquivos abrem no Drive, em nova aba.</p>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><a class="btn pri sm" href="' + esc(ctrl || pasta) + '" target="_blank" rel="noopener">' + ic('tabela', 's') + '<span>Abrir controle online</span></a><a class="btn sm" href="' + esc(pasta) + '" target="_blank" rel="noopener">' + ic('externo', 's') + '<span>Abrir pasta no Drive</span></a></div></div></div>' +
+    meses.map((m) => '<div class="sec-tit"><a href="' + esc(m.link) + '" target="_blank" rel="noopener" style="color:inherit">' + esc(m.nome) + '</a> <span class="bdg">' + (m.arquivos || []).length + '</span></div><div class="card"><div class="lista">' + ((m.arquivos || []).map(arq).join('') || vazio('Nenhum arquivo neste mês ainda.', 'doc')) + '</div></div>').join('') +
+    ((d.soltos || []).length ? '<div class="sec-tit">Outros arquivos da pasta <span class="bdg">' + d.soltos.length + '</span></div><div class="card"><div class="lista">' + d.soltos.map(arq).join('') + '</div></div>' : '');
+}
+VIEWS.cghs = function () {
+  titulo('CGHS');
+  if (S.cghs) $('#conteudo').innerHTML = htmlCghs(S.cghs);
+  else $('#conteudo').innerHTML = '<div class="carregando"><div class="spin"></div></div>';
+  if (VIEWS.cghs.lendo) return;
+  VIEWS.cghs.lendo = true;
+  apiCghs().then((d) => { S.cghs = d; if (location.hash.startsWith('#/cghs')) $('#conteudo').innerHTML = htmlCghs(d); })
+    .catch((e) => { if (location.hash.startsWith('#/cghs') && !S.cghs) $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px">' + vazio(e.message || 'Erro ao ler a pasta.', 'alerta') + '<div style="padding:0 16px 16px"><a class="btn sm" href="' + PASTA_CGHS + '" target="_blank" rel="noopener">' + ic('externo', 's') + '<span>Abrir pasta no Drive</span></a></div></div>'; })
+    .finally(() => { VIEWS.cghs.lendo = false; });
+};
 VIEWS.ordens = function () {
   titulo('Fila do agente');
   const l = ordensLista();
