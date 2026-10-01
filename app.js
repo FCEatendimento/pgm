@@ -795,7 +795,7 @@ async function enviarComando(porVoz) {
 }
 function itemOrdem(o) {
   const cls = o.status === 'AGUARDANDO_CONFIRMACAO' ? 'warn' : o.status === 'ERRO' ? 'bad' : o.status === 'CONCLUIDA' ? 'ok' : o.status === 'EM_EXECUCAO' ? 'info' : '';
-  return '<div class="item clic" data-o="' + esc(o.id) + '"><span class="dot ' + cls + '"></span><div class="mid"><div class="t">' + esc(o.titulo) + '</div>' +
+  return '<div class="item clic" data-o="' + esc(o.id) + '"><span class="dot ' + cls + '"></span><div class="mid"><div class="t">' + (o.numero ? '<span class="num-t">' + o.numero + '.</span> ' : '') + esc(o.titulo) + '</div>' +
     '<div class="d">' + esc(o.instrucoes || (o.dados && o.dados.prompt_minutaia) || o.comando || '') .slice(0, 400) + '</div>' +
     '<div class="tags"><span class="chip nav">' + esc(OTIPO[o.tipo] || o.tipo) + '</span>' + (o.processo ? '<span class="chip">' + esc(o.processo) + '</span>' : '') + '<span class="chip ' + cls + '">' + esc(OST[o.status] || o.status) + '</span></div></div>' +
     '<div class="dir"><span class="pp mut">' + esc(new Date(o.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) + '</span></div></div>';
@@ -854,7 +854,7 @@ function verOrdem(o) {
   const botoes = [{ txt: 'Fechar', valor: null }];
   if (o.rascunho) botoes.unshift({ txt: 'Copiar rascunho', ic: 'doc', cls: 'fant', acao: async () => { try { await navigator.clipboard.writeText(o.rascunho); toast('Rascunho copiado.'); } catch (e) { toast('Não foi possível copiar.', true); } return false; } });
   if (['NOVA', 'AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)) botoes.unshift({ txt: 'Cancelar ordem', ic: 'x', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Cancelar ordem', 'Cancelar "' + o.titulo + '"?', 'Cancelar ordem', true))) return false; const r = await apiAg('ordem_cancelar', { id: o.id }); if (r) substituir(S.dados.ordens, r); redesenhar(); toast('Ordem cancelada.'); } });
-  modal({ titulo: 'Tarefa', corpo, largo: true, botoes });
+  modal({ titulo: 'Tarefa' + (o.numero ? ' nº ' + o.numero : ''), corpo, largo: true, botoes });
 }
 function editarOrdem(pre) {
   pre = pre || {}; const dd = pre.dados || {};
