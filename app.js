@@ -43,6 +43,7 @@ const IC = {
   som: '<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
   fila: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h5"/><circle cx="16.5" cy="15" r="2.2"/>',
   junta: '<path d="M12 3v17M8 20h8"/><path d="M4 7h16"/><path d="M6 7l-3 6a3 3 0 0 0 6 0z"/><path d="M18 7l-3 6a3 3 0 0 0 6 0z"/>',
+  stj: '<path d="M3 21h18M5 21v-9M9.5 21v-9M14.5 21v-9M19 21v-9"/><path d="M2 10l10-6 10 6z"/>',
   tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>'
 };
 const LINKS = [
@@ -51,8 +52,8 @@ const LINKS = [
 ];
 const ic = (n, c) => '<svg class="i' + (c ? ' ' + c : '') + '" viewBox="0 0 24 24">' + (IC[n] || '') + '</svg>';
 
-const TRIB = { TJRS1: 'TJRS 1º grau', TJRS2: 'TJRS 2º grau', TRF41: 'TRF4 1º grau', TRF42: 'TRF4 2º grau' };
-const TRIB_CURTO = { TJRS1: 'TJRS 1º', TJRS2: 'TJRS 2º', TRF41: 'TRF4 1º', TRF42: 'TRF4 2º' };
+const TRIB = { TJRS1: 'TJRS 1º grau', TJRS2: 'TJRS 2º grau', TRF41: 'TRF4 1º grau', TRF42: 'TRF4 2º grau', STJ: 'STJ' };
+const TRIB_CURTO = { TJRS1: 'TJRS 1º', TJRS2: 'TJRS 2º', TRF41: 'TRF4 1º', TRF42: 'TRF4 2º', STJ: 'STJ' };
 const STATUS = { PENDENTE: 'A fazer', EM_ELABORACAO: 'Em elaboração', PROTOCOLADO: 'Protocolado', CIENCIA: 'Ciência dada', ARQUIVADO: 'Arquivado' };
 const MEMO = { NAO: 'Sem memorando', A_ENVIAR: 'A enviar', ENVIADO: 'Enviado – aguardando', RESPONDIDO: 'Respondido' };
 const SECRETARIAS = ['Fazenda', 'Administração', 'Saúde', 'Educação', 'Obras e Serviços Urbanos', 'Desenvolvimento Urbano e Habitação', 'Meio Ambiente', 'Desenvolvimento Social', 'Segurança', 'Mobilidade Urbana', 'Cultura', 'Esporte e Lazer', 'Gabinete do Prefeito', 'PROCON', 'COMUSA', 'Previdência (IPASEM)'];
@@ -169,6 +170,7 @@ function ordenar() {
 const ROTAS = [
   { k: 'inicio', t: 'Início', ic: 'casa' },
   { k: 'prazos', t: 'Prazos', ic: 'prazo' },
+  { k: 'stj', t: 'Prazos STJ', tc: 'STJ', ic: 'stj', lat: true },
   { k: 'tarefas', t: 'Tarefas', ic: 'tarefa' },
   { k: 'memorandos', t: 'Memorandos', tc: 'Memos', ic: 'memo' },
   { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' },
@@ -189,7 +191,7 @@ function iniciarApp() {
   $('#batual').onclick = () => rota(true);
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
-  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : editarPrazo());
+  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : location.hash.startsWith('#/stj') ? editarPrazo({ tribunal: 'STJ', status: 'PENDENTE', memo_status: 'NAO' }) : editarPrazo());
   if (!location.hash || location.hash === '#/') location.hash = '#/inicio';
   rota();
 }
@@ -200,7 +202,7 @@ function badges() {
   const mem = prazos().filter((p) => aberto(p) && p.memo_status === 'A_ENVIAR').length;
   const set = (k, n, r) => $$('a[data-r="' + k + '"] .bdg-slot').forEach((e) => { e.innerHTML = n ? '<span class="bdg' + (r ? ' r' : '') + '">' + n + '</span>' : ''; });
   const jv = ((S.dados && S.dados.jrf && S.dados.jrf.processos) || []).filter((p) => !['JULGADO', 'ARQUIVADO'].includes(p.status) && p.prazo_voto && p.prazo_voto <= addDias(h, 3)).length;
-  set('prazos', urg, true); set('tarefas', tar, true); set('memorandos', mem, false); set('junta', jv, true);
+  set('prazos', urg, true); set('stj', prazos().filter((p) => p.tribunal === 'STJ' && aberto(p) && p.fim && p.fim <= h).length, true); set('tarefas', tar, true); set('memorandos', mem, false); set('junta', jv, true);
   set('ordens', ((S.dados && S.dados.ordens) || []).filter((o) => ['AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)).length, true);
 }
 let rodando = 0;
@@ -289,10 +291,13 @@ VIEWS.inicio = function () {
   $$('[data-o]').forEach((e) => { e.onclick = () => verOrdem(ordensLista().find((o) => o.id === e.dataset.o)); });
 };
 VIEWS.prazos = function () {
-  titulo('Prazos');
-  const h = hoje(), f = S.f;
+  const fx = location.hash.startsWith('#/stj') ? 'STJ' : '';
+  const reabrir = () => (fx ? VIEWS.stj() : VIEWS.prazos());
+  titulo(fx ? 'Prazos do STJ' : 'Prazos');
+  const h = hoje(), f = fx ? Object.assign({}, S.f, { trib: fx }) : S.f;
   const porSit = (p) => f.sit === 'abertos' ? aberto(p) : f.sit === 'concluidos' ? ['PROTOCOLADO', 'CIENCIA'].includes(p.status) : f.sit === 'arquivados' ? p.status === 'ARQUIVADO' : true;
-  const base = prazos().filter(porSit);
+  const doTrib = fx ? prazos().filter((p) => p.tribunal === fx) : prazos();
+  const base = doTrib.filter(porSit);
   const MARCAS = {
     atrasados: ['Vencidos', (p) => p.fim && p.fim < h], hoje: ['Hoje', (p) => p.fim === h], '7dias': ['7 dias', (p) => p.fim && p.fim >= h && p.fim <= addDias(h, 7)],
     ed: ['Com ED', (p) => p.ed_cabivel], memo: ['Com memorando', (p) => p.memo_status && p.memo_status !== 'NAO']
@@ -306,17 +311,18 @@ VIEWS.prazos = function () {
   $('#conteudo').classList.toggle('largo', vis === 'tabela');
   $('#conteudo').innerHTML = '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="q" placeholder="Buscar processo, parte, peça, secretaria…" value="' + esc(f.q) + '"></label>' +
     '<div class="seg" role="group" aria-label="Formato">' + [['lista', 'Lista', 'lista'], ['tabela', 'Tabela', 'tabela']].map((o) => '<button data-vis="' + o[0] + '" class="' + (vis === o[0] ? 'on' : '') + '" title="Ver em ' + o[1].toLowerCase() + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div></div>' +
-    '<div class="filtros">' + bt('sit', 'abertos', 'Abertos', prazos().filter(aberto).length) + bt('sit', 'concluidos', 'Concluídos') + bt('sit', 'arquivados', 'Arquivados') + bt('sit', 'todos', 'Todos') +
-    '<span class="sep"></span>' + bt('trib', '', 'Todos os tribunais') + Object.keys(TRIB).map((k) => bt('trib', k, TRIB_CURTO[k], cnt((p) => p.tribunal === k))).join('') + '</div>' +
+    (fx ? '<div class="card stj-info"><div class="pp">' + ic('stj', 's') + ' <b>Superior Tribunal de Justiça</b> · prazos do Município em dobro (art. 183 CPC): agravo interno e AREsp 30 dias úteis, contrarrazões a REsp/AREsp 30 dias úteis, embargos de declaração 10 dias úteis.</div></div>' : '') +
+    '<div class="filtros">' + bt('sit', 'abertos', 'Abertos', doTrib.filter(aberto).length) + bt('sit', 'concluidos', 'Concluídos') + bt('sit', 'arquivados', 'Arquivados') + bt('sit', 'todos', 'Todos') +
+    (fx ? '' : '<span class="sep"></span>' + bt('trib', '', 'Todos os tribunais') + Object.keys(TRIB).map((k) => bt('trib', k, TRIB_CURTO[k], cnt((p) => p.tribunal === k))).join('')) + '</div>' +
     '<div class="filtros" style="margin-top:-4px">' + bt('marca', '', 'Sem filtro') + Object.keys(MARCAS).map((k) => bt('marca', k, MARCAS[k][0], cnt(MARCAS[k][1]))).join('') + '</div>' +
-    (!lista.length ? '<div class="card">' + vazio(prazos().length ? 'Nenhum prazo com esses filtros.' : 'Nenhum prazo cadastrado ainda.', 'prazo') + '</div>'
+    (!lista.length ? '<div class="card">' + vazio(doTrib.length ? 'Nenhum prazo com esses filtros.' : fx ? 'Nenhum prazo do STJ cadastrado ainda. Use “Novo prazo” ou peça a importação da triagem do STJ.' : 'Nenhum prazo cadastrado ainda.', fx ? 'stj' : 'prazo') + '</div>'
       : vis === 'tabela' ? tabelaPrazos(lista) : '<div class="card"><div class="lista">' + lista.map(itemPrazo).join('') + '</div></div>') +
     '<p class="pp mut" style="margin:10px 2px">' + lista.length + ' prazo(s)</p>';
-  $$('[data-vis]').forEach((b) => { b.onclick = () => { S.vis = b.dataset.vis; LS.set('vis', S.vis); VIEWS.prazos(); }; });
-  $$('th[data-oc]').forEach((th) => { th.onclick = () => { const c = th.dataset.oc; S.ord = { c, d: S.ord.c === c ? -S.ord.d : 1 }; LS.set('ord', S.ord); VIEWS.prazos(); }; });
-  $$('[data-sit],[data-trib],[data-marca]').forEach((b) => { b.onclick = () => { const g = b.dataset.sit !== undefined ? 'sit' : b.dataset.trib !== undefined ? 'trib' : 'marca'; S.f[g] = b.dataset[g]; LS.set('filtros', S.f); VIEWS.prazos(); }; });
+  $$('[data-vis]').forEach((b) => { b.onclick = () => { S.vis = b.dataset.vis; LS.set('vis', S.vis); reabrir(); }; });
+  $$('th[data-oc]').forEach((th) => { th.onclick = () => { const c = th.dataset.oc; S.ord = { c, d: S.ord.c === c ? -S.ord.d : 1 }; LS.set('ord', S.ord); reabrir(); }; });
+  $$('[data-sit],[data-trib],[data-marca]').forEach((b) => { b.onclick = () => { const g = b.dataset.sit !== undefined ? 'sit' : b.dataset.trib !== undefined ? 'trib' : 'marca'; S.f[g] = b.dataset[g]; LS.set('filtros', S.f); reabrir(); }; });
   const qi = $('#q'); let tm;
-  qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { S.f.q = qi.value; LS.set('filtros', S.f); const pos = qi.selectionStart; VIEWS.prazos(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); }, 250); };
+  qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { S.f.q = qi.value; LS.set('filtros', S.f); const pos = qi.selectionStart; reabrir(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); }, 250); };
   ligarListas($('#conteudo'));
 };
 const COLS = [
@@ -353,6 +359,7 @@ function tabelaPrazos(lista) {
   }).join('');
   return '<div class="card tab-wrap"><table class="tab"><thead><tr>' + th + '</tr></thead><tbody>' + linhas + '</tbody></table></div>';
 }
+VIEWS.stj = function () { VIEWS.prazos(); };
 VIEWS.tarefas = function () {
   titulo('Tarefas');
   const lista = tarefas().filter((t) => S.ft === 'todas' || (S.ft === 'abertas' ? t.status === 'ABERTA' : t.status === 'FEITA'));
@@ -395,6 +402,7 @@ VIEWS.mais = function () {
   const tema = document.documentElement.dataset.tema || 'auto';
   $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px"><div class="lista"><div class="item"><div class="av">' + (eu.foto ? '<img src="' + esc(eu.foto) + '" alt="" referrerpolicy="no-referrer">' : '') + '</div><div class="mid"><div class="t">' + esc(eu.nome || '') + '</div><div class="d">' + esc(eu.email || '') + '</div></div></div>' +
     '<div class="item">' + ic(temaEfetivo() === 'escuro' ? 'lua' : 'sol') + '<div class="mid"><div class="t">Tema</div><div class="seg" style="margin-top:8px">' + [['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map((o) => '<button data-tema="' + o[0] + '" class="' + (tema === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div></div>' +
+    '<a class="item clic" href="#/stj">' + ic('stj') + '<div class="mid"><div class="t">Prazos do STJ</div><div class="d">' + prazos().filter((p) => p.tribunal === 'STJ' && aberto(p)).length + ' prazo(s) em aberto</div></div></a>' +
     '<a class="item clic" href="#/ordens">' + ic('fila') + '<div class="mid"><div class="t">Fila do agente</div><div class="d">Memorandos, minutas e documentos pedidos por voz</div></div></a>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
     '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>' +
