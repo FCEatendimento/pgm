@@ -308,23 +308,56 @@ VIEWS.prazos = function () {
     (!q || [p.processo, p.parte, p.classe, p.providencia, p.intimacao, p.orgao, p.memo_secretaria, p.observacoes].join(' ').toLowerCase().includes(q)));
   const cnt = (fn) => base.filter(fn).length;
   const bt = (grp, val, txt, n) => '<button data-' + grp + '="' + val + '" class="' + (f[grp] === val ? 'on' : '') + '">' + txt + (n !== undefined ? '<span class="n">' + n + '</span>' : '') + '</button>';
-  const vis = S.vis === 'tabela' ? 'tabela' : 'lista';
-  $('#conteudo').classList.toggle('largo', vis === 'tabela');
+  const vis = ['tabela', 'calendario'].includes(S.vis) ? S.vis : 'lista';
+  $('#conteudo').classList.toggle('largo', vis !== 'lista');
   $('#conteudo').innerHTML = '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="q" placeholder="Buscar processo, parte, peça, secretaria…" value="' + esc(f.q) + '"></label>' +
-    '<div class="seg" role="group" aria-label="Formato">' + [['lista', 'Lista', 'lista'], ['tabela', 'Tabela', 'tabela']].map((o) => '<button data-vis="' + o[0] + '" class="' + (vis === o[0] ? 'on' : '') + '" title="Ver em ' + o[1].toLowerCase() + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div></div>' +
+    '<div class="seg" role="group" aria-label="Formato">' + [['lista', 'Lista', 'lista'], ['tabela', 'Tabela', 'tabela'], ['calendario', 'Calendário', 'hoje']].map((o) => '<button data-vis="' + o[0] + '" class="' + (vis === o[0] ? 'on' : '') + '" title="Ver em ' + o[1].toLowerCase() + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div></div>' +
     '<div class="filtros">' + bt('sit', 'abertos', 'Abertos', prazos().filter(aberto).length) + bt('sit', 'concluidos', 'Concluídos') + bt('sit', 'arquivados', 'Arquivados') + bt('sit', 'todos', 'Todos') +
     '<span class="sep"></span>' + bt('trib', '', 'Todos os tribunais') + Object.keys(TRIB).map((k) => bt('trib', k, logoT(k) + TRIB_CURTO[k], cnt((p) => p.tribunal === k))).join('') + '</div>' +
     '<div class="filtros" style="margin-top:-4px">' + bt('marca', '', 'Sem filtro') + Object.keys(MARCAS).map((k) => bt('marca', k, MARCAS[k][0], cnt(MARCAS[k][1]))).join('') + '</div>' +
     (!lista.length ? '<div class="card">' + vazio(prazos().length ? 'Nenhum prazo com esses filtros.' : 'Nenhum prazo cadastrado ainda.', 'prazo') + '</div>'
-      : vis === 'tabela' ? tabelaPrazos(lista) : '<div class="card"><div class="lista">' + lista.map(itemPrazo).join('') + '</div></div>') +
+      : vis === 'calendario' ? calendarioPrazos(lista) : vis === 'tabela' ? tabelaPrazos(lista) : '<div class="card"><div class="lista">' + lista.map(itemPrazo).join('') + '</div></div>') +
     '<p class="pp mut" style="margin:10px 2px">' + lista.length + ' prazo(s)</p>';
   $$('[data-vis]').forEach((b) => { b.onclick = () => { S.vis = b.dataset.vis; LS.set('vis', S.vis); VIEWS.prazos(); }; });
+  $$('[data-cal]').forEach((b) => { b.onclick = () => { const v = b.dataset.cal; S.calMes = v === 'hoje' ? hoje().slice(0, 7) : v; S.calDia = v === 'hoje' ? hoje() : ''; VIEWS.prazos(); }; });
+  $$('[data-dia]').forEach((c) => { c.onclick = () => { S.calDia = S.calDia === c.dataset.dia ? '' : c.dataset.dia; VIEWS.prazos(); const a = $('#cal-dia'); if (a && S.calDia) a.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }; });
   $$('th[data-oc]').forEach((th) => { th.onclick = () => { const c = th.dataset.oc; S.ord = { c, d: S.ord.c === c ? -S.ord.d : 1 }; LS.set('ord', S.ord); VIEWS.prazos(); }; });
   $$('[data-sit],[data-trib],[data-marca]').forEach((b) => { b.onclick = () => { const g = b.dataset.sit !== undefined ? 'sit' : b.dataset.trib !== undefined ? 'trib' : 'marca'; S.f[g] = b.dataset[g]; LS.set('filtros', S.f); VIEWS.prazos(); }; });
   const qi = $('#q'); let tm;
   qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { S.f.q = qi.value; LS.set('filtros', S.f); const pos = qi.selectionStart; VIEWS.prazos(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); }, 250); };
   ligarListas($('#conteudo'));
 };
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+function calendarioPrazos(lista) {
+  const h = hoje();
+  const mes = /^\d{4}-\d{2}$/.test(S.calMes || '') ? S.calMes : h.slice(0, 7);
+  const [a, m] = mes.split('-').map(Number);
+  const ant = m === 1 ? (a - 1) + '-12' : a + '-' + String(m - 1).padStart(2, '0');
+  const prx = m === 12 ? (a + 1) + '-01' : a + '-' + String(m + 1).padStart(2, '0');
+  const porDia = {};
+  lista.forEach((p) => { if (p.fim) (porDia[p.fim] = porDia[p.fim] || []).push(p); });
+  const nDias = new Date(Date.UTC(a, m, 0)).getUTCDate();
+  const ini = (new Date(Date.UTC(a, m - 1, 1)).getUTCDay() + 6) % 7;
+  const ordT = Object.keys(TRIB);
+  let cel = '';
+  for (let i = 0; i < ini; i++) cel += '<div class="cal-d vaz"></div>';
+  let totMes = 0;
+  for (let d = 1; d <= nDias; d++) {
+    const k = mes + '-' + String(d).padStart(2, '0');
+    const ps = porDia[k] || [];
+    totMes += ps.length;
+    const c = {}; ps.forEach((p) => { c[p.tribunal] = (c[p.tribunal] || 0) + 1; });
+    const venc = k < h && ps.some(aberto);
+    const fds = (ini + d - 1) % 7 >= 5;
+    cel += '<div class="cal-d' + (k === h ? ' hj' : '') + (fds ? ' fds' : '') + (venc ? ' venc' : '') + (ps.length ? ' tem clic' : '') + (S.calDia === k ? ' sel' : '') + '"' + (ps.length ? ' data-dia="' + k + '" title="' + ps.length + ' prazo(s) em ' + fdata(k) + '"' : '') + '><span class="cal-n">' + d + '</span>' +
+      ordT.filter((t) => c[t]).map((t) => '<span class="cal-t" title="' + esc(TRIB[t]) + '">' + logoT(t) + '<span class="cal-s">' + esc(TRIB_CURTO[t]) + '</span>' + (/[12]$/.test(t) ? '<span class="cal-gr">' + t.slice(-1) + 'º</span>' : '') + '<b>' + c[t] + '</b></span>').join('') + '</div>';
+  }
+  const fim = (ini + nDias) % 7; if (fim) for (let i = fim; i < 7; i++) cel += '<div class="cal-d vaz"></div>';
+  const doDia = S.calDia && S.calDia.startsWith(mes) ? (porDia[S.calDia] || []) : [];
+  return '<div class="card cal"><div class="cal-top"><button class="btn fant ico sm" data-cal="' + ant + '" title="Mês anterior">‹</button><b>' + MESES[m - 1] + ' de ' + a + '</b><button class="btn fant ico sm" data-cal="' + prx + '" title="Próximo mês">›</button><span class="cal-tot pp mut">' + totMes + ' prazo(s) no mês</span><button class="btn sm" data-cal="hoje">Hoje</button></div>' +
+    '<div class="cal-g">' + ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((x) => '<div class="cal-w">' + x + '</div>').join('') + cel + '</div></div>' +
+    (doDia.length ? '<div class="sec-tit" id="cal-dia">Prazos de ' + fdata(S.calDia, true) + ' <span class="bdg">' + doDia.length + '</span></div><div class="card"><div class="lista">' + doDia.map(itemPrazo).join('') + '</div></div>' : '');
+}
 const COLS = [
   { c: 'fim', t: 'Prazo', v: (p) => p.fim || '9999' },
   { c: 'tribunal', t: 'Tribunal', v: (p) => p.tribunal },
