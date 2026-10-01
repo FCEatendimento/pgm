@@ -174,11 +174,10 @@ function ordenar() {
 const ROTAS = [
   { k: 'inicio', t: 'Início', ic: 'casa' },
   { k: 'prazos', t: 'Prazos', ic: 'prazo' },
-  { k: 'tarefas', t: 'Tarefas', ic: 'tarefa' },
+  { k: 'ordens', t: 'Lista de Tarefas', tc: 'Tarefas', ic: 'fila' },
   { k: 'memorandos', t: 'Memorandos', tc: 'Memos', ic: 'memo' },
   { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' },
-  { k: 'cghs', t: 'CGHS – Honorários', ic: 'cghs', lat: true },
-  { k: 'ordens', t: 'Fila do agente', ic: 'fila', lat: true }
+  { k: 'cghs', t: 'CGHS – Honorários', ic: 'cghs', lat: true }
 ];
 function iniciarApp() {
   const eu = S.eu || {};
@@ -206,7 +205,7 @@ function badges() {
   const mem = prazos().filter((p) => aberto(p) && p.memo_status === 'A_ENVIAR').length;
   const set = (k, n, r) => $$('a[data-r="' + k + '"] .bdg-slot').forEach((e) => { e.innerHTML = n ? '<span class="bdg' + (r ? ' r' : '') + '">' + n + '</span>' : ''; });
   const jv = ((S.dados && S.dados.jrf && S.dados.jrf.processos) || []).filter((p) => !['JULGADO', 'ARQUIVADO'].includes(p.status) && p.prazo_voto && p.prazo_voto <= addDias(h, 3)).length;
-  set('prazos', urg, true); set('tarefas', tar, true); set('memorandos', mem, false); set('junta', jv, true);
+  set('prazos', urg, true); set('memorandos', mem, false); set('junta', jv, true);
   set('ordens', ((S.dados && S.dados.ordens) || []).filter((o) => ['AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)).length, true);
 }
 let rodando = 0;
@@ -214,7 +213,7 @@ async function rota(forcar) {
   const [k, arg] = (location.hash.replace(/^#\//, '') || 'inicio').split('/');
   const v = VIEWS[k] ? k : 'inicio';
   $$('a[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === v));
-  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : v === 'ordens' ? 'Nova ordem' : 'Novo prazo';
+  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : v === 'ordens' ? 'Nova tarefa' : 'Novo prazo';
   $('#conteudo').classList.remove('largo');
   const meu = ++rodando;
   if (!S.dados) $('#conteudo').innerHTML = '<div class="carregando"><div class="spin"></div></div>';
@@ -269,8 +268,7 @@ VIEWS.inicio = function () {
   const sem7 = ab.filter((p) => p.fim && p.fim > h && p.fim <= addDias(h, 7));
   const ed = ab.filter((p) => p.ed_cabivel && (!p.ed_prazo || p.ed_prazo >= h));
   const memA = ab.filter((p) => p.memo_status === 'A_ENVIAR'), memE = ab.filter((p) => p.memo_status === 'ENVIADO');
-  const tab = tarefas().filter((t) => t.status === 'ABERTA');
-  const nome = ((S.eu && S.eu.nome) || '').split(' ')[0];
+    const nome = ((S.eu && S.eu.nome) || '').split(' ')[0];
   const hr = new Date().getHours();
   const kpi = (rot, val, sub, i, cls, go) => '<div class="card kpi ' + (cls || '') + '" data-go="' + go + '"><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div><div class="ico">' + ic(i, 's') + '</div></div>';
   $('#conteudo').innerHTML = '<div class="ola"><h2>' + (hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite') + (nome ? ', ' + esc(nome) : '') + '</h2><p>' + esc(new Date(dt(h).getTime() + 12 * 36e5).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })) + '</p></div>' +
@@ -284,11 +282,10 @@ VIEWS.inicio = function () {
     '</div>' +
     '<div class="grid g2" style="margin-top:16px"><div class="card"><div class="cab"><h2>Próximos vencimentos</h2><div class="dir"><a class="btn fant sm" href="#/prazos">Ver todos</a></div></div><div class="lista" id="l1">' +
     (ab.slice(0, 8).map(itemPrazo).join('') || vazio('Nenhum prazo aberto.')) + '</div></div>' +
-    '<div class="card"><div class="cab"><h2>Tarefas</h2><div class="dir"><a class="btn fant sm" href="#/tarefas">Ver todas</a></div></div><div class="lista" id="l2">' +
-    (tab.slice(0, 7).map(itemTarefa).join('') || vazio('Nenhuma tarefa aberta.')) + '</div></div></div>' +
+    '<div class="card"><div class="cab"><h2>Lista de Tarefas</h2><div class="dir"><a class="btn fant sm" href="#/ordens">Ver todas</a></div></div><div class="lista" id="l2">' +
+    (ordensLista().filter(ordemAberta).slice(0, 7).map(itemOrdem).join('') || vazio('Nenhuma tarefa na lista.', 'fila')) + '</div></div></div>' +
     '<div class="sec-tit">Junta de Recursos Fiscais <a class="btn fant sm" href="#/junta" style="margin-left:auto">Abrir</a></div>' + cardProxSessao() +
     (() => { const l = jProc().filter(jrfAberto).slice(0, 5); return l.length ? '<div class="card" style="margin-top:12px"><div class="lista">' + l.map(itemJrf).join('') + '</div></div>' : ''; })() +
-    (() => { const l = ordensLista().filter(ordemAberta); return l.length ? '<div class="sec-tit">Fila do agente <span class="bdg">' + l.length + '</span><a class="btn fant sm" href="#/ordens" style="margin-left:auto">Abrir</a></div><div class="card"><div class="lista">' + l.slice(0, 4).map(itemOrdem).join('') + '</div></div>' : ''; })() +
     '<div class="rodape-app">TJRS 1º e 2º graus · TRF4 1º e 2º graus · Junta de Recursos Fiscais</div>';
   $$('[data-go]').forEach((e) => { e.onclick = () => { const g = e.dataset.go; if (g === 'memo') { location.hash = '#/memorandos'; return; } Object.assign(S.f, { sit: 'abertos', trib: '', marca: g, q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; }; });
   ligarListas($('#conteudo')); ligarJunta($('#conteudo'));
@@ -435,7 +432,6 @@ VIEWS.mais = function () {
   $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px"><div class="lista"><div class="item"><div class="av">' + (fotoEu(eu) ? '<img src="' + esc(fotoEu(eu)) + '" alt="" referrerpolicy="no-referrer">' : '') + '</div><div class="mid"><div class="t">' + esc(eu.nome || '') + '</div><div class="d">' + esc(eu.email || '') + '</div></div></div>' +
     '<div class="item">' + ic(temaEfetivo() === 'escuro' ? 'lua' : 'sol') + '<div class="mid"><div class="t">Tema</div><div class="seg" style="margin-top:8px">' + [['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map((o) => '<button data-tema="' + o[0] + '" class="' + (tema === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div></div>' +
     '<a class="item clic" href="#/cghs">' + ic('cghs') + '<div class="mid"><div class="t">CGHS – Honorários</div><div class="d">Arquivos mensais dos honorários e controle online</div></div></a>' +
-    '<a class="item clic" href="#/ordens">' + ic('fila') + '<div class="mid"><div class="t">Fila do agente</div><div class="d">Memorandos, minutas e documentos pedidos por voz</div></div></a>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
     '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>' +
     '<div class="sec-tit">Acesso rápido</div><div class="card"><div class="lista">' + LINKS.map((l) => '<a class="item clic" href="' + l.url + '" target="_blank" rel="noopener">' + ic(l.ic) + '<div class="mid"><div class="t">' + esc(l.t) + '</div><div class="d">' + esc(l.d) + '</div></div>' + ic('externo', 's') + '</a>').join('') + '</div></div>';
@@ -786,7 +782,7 @@ async function enviarComando(porVoz) {
     const d = await apiAg('comando', { texto, historico });
     const ex = [];
     if (d.tarefas && d.tarefas.length) ex.push('<span class="chip ok">' + d.tarefas.length + ' tarefa(s) criada(s)</span>');
-    if (d.ordens && d.ordens.length) ex.push('<a class="chip info" href="#/ordens">' + d.ordens.length + ' ordem(ns) na fila</a>');
+    if (d.ordens && d.ordens.length) ex.push('<a class="chip info" href="#/ordens">' + d.ordens.length + ' tarefa(s) na lista</a>');
     if (d.prazos) ex.push('<span class="chip">' + d.prazos + ' prazo(s) atualizado(s)</span>');
     if (d.junta) ex.push('<span class="chip">' + d.junta + ' processo(s) da Junta atualizado(s)</span>');
     if (d.ignoradas && d.ignoradas.length) ex.push('<span class="chip warn">não feito: ' + esc(d.ignoradas.join(', ')) + '</span>');
@@ -838,10 +834,10 @@ VIEWS.cghs = function () {
     .finally(() => { VIEWS.cghs.lendo = false; });
 };
 VIEWS.ordens = function () {
-  titulo('Fila do agente');
+  titulo('Lista de Tarefas');
   const l = ordensLista();
   const bloco = (tit, fn, vaz) => { const x = l.filter(fn); return x.length || vaz ? '<div class="sec-tit">' + tit + ' <span class="bdg">' + x.length + '</span></div><div class="card"><div class="lista">' + (x.map(itemOrdem).join('') || vazio(vaz || '', 'fila')) + '</div></div>' : ''; };
-  $('#conteudo').innerHTML = '<div class="card aviso" style="margin-top:14px"><div class="ico">' + ic('fila', 's') + '</div><div><b>Como a fila funciona</b><p>Memorandos, minutas do MinutaIA e documentos do eproc são executados pelo Claude no seu computador, com você presente para os logins. Para executar, abra o Claude no projeto "Procurador PGM" e diga <i>“executar a fila da PGM”</i>. Nada é enviado, peticionado ou protocolado sem a sua confirmação.</p></div></div>' +
+  $('#conteudo').innerHTML = '<div class="card aviso" style="margin-top:14px"><div class="ico">' + ic('fila', 's') + '</div><div><b>Como a lista funciona</b><p>Memorandos, minutas do MinutaIA e documentos do eproc são executados pelo Claude no seu computador, com você presente para os logins. Para executar, abra o Claude no projeto "Procurador PGM" e diga <i>“executar a fila da PGM”</i>. Nada é enviado, peticionado ou protocolado sem a sua confirmação.</p></div></div>' +
     bloco('Aguardando sua confirmação', (o) => o.status === 'AGUARDANDO_CONFIRMACAO') + bloco('Com erro', (o) => o.status === 'ERRO') + bloco('Em execução', (o) => o.status === 'EM_EXECUCAO') +
     bloco('Na fila', (o) => o.status === 'NOVA', 'Nenhuma ordem na fila. Use o microfone para pedir.') + bloco('Concluídas e canceladas (30 dias)', (o) => ['CONCLUIDA', 'CANCELADA'].includes(o.status));
   $$('[data-o]').forEach((e) => { e.onclick = () => verOrdem(ordensLista().find((o) => o.id === e.dataset.o)); });
@@ -858,7 +854,7 @@ function verOrdem(o) {
   const botoes = [{ txt: 'Fechar', valor: null }];
   if (o.rascunho) botoes.unshift({ txt: 'Copiar rascunho', ic: 'doc', cls: 'fant', acao: async () => { try { await navigator.clipboard.writeText(o.rascunho); toast('Rascunho copiado.'); } catch (e) { toast('Não foi possível copiar.', true); } return false; } });
   if (['NOVA', 'AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)) botoes.unshift({ txt: 'Cancelar ordem', ic: 'x', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Cancelar ordem', 'Cancelar "' + o.titulo + '"?', 'Cancelar ordem', true))) return false; const r = await apiAg('ordem_cancelar', { id: o.id }); if (r) substituir(S.dados.ordens, r); redesenhar(); toast('Ordem cancelada.'); } });
-  modal({ titulo: 'Ordem', corpo, largo: true, botoes });
+  modal({ titulo: 'Tarefa', corpo, largo: true, botoes });
 }
 function editarOrdem(pre) {
   pre = pre || {}; const dd = pre.dados || {};
@@ -870,7 +866,7 @@ function editarOrdem(pre) {
     (minuta ? '<label class="full">Prompt para o MinutaIA<textarea class="inp" name="prompt_minutaia" style="min-height:140px" placeholder="Ex.: elabore impugnação à exceção de pré-executividade sustentando…">' + esc(dd.prompt_minutaia || '') + '</textarea></label>' : '') +
     '<label class="full">' + (memo ? 'O que o memorando deve pedir (além do padrão)' : 'Instruções adicionais') + '<textarea class="inp" name="instrucoes" style="min-height:90px">' + esc(pre.instrucoes || '') + '</textarea></label></form>' +
     '<p class="pp mut">A ordem vai para a fila e é executada pelo Claude no seu computador; nada é enviado sem a sua confirmação.</p>';
-  modal({ titulo: memo ? 'Pedir memorando' : minuta ? 'Pedir minuta no MinutaIA' : 'Nova ordem', corpo, largo: true, botoes: [{ txt: 'Cancelar', valor: null }, { txt: 'Colocar na fila', cls: 'pri', ic: 'check', acao: async (v) => {
+  modal({ titulo: memo ? 'Pedir memorando' : minuta ? 'Pedir minuta no MinutaIA' : 'Nova tarefa', corpo, largo: true, botoes: [{ txt: 'Cancelar', valor: null }, { txt: 'Colocar na lista', cls: 'pri', ic: 'check', acao: async (v) => {
     const f = $('#fo', v), d = Object.fromEntries(new FormData(f).entries());
     if (minuta && !String(d.prompt_minutaia || '').trim()) { toast('Escreva o prompt para o MinutaIA.', true); return false; }
     const ordem = { tipo: pre.tipo || 'OUTRO', processo: d.processo, prazo_id: pre.prazo_id || null, instrucoes: d.instrucoes,
