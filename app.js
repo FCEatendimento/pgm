@@ -136,14 +136,16 @@ async function aoLogar(resp) {
     const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'login', credential: resp.credential }) });
     const j = await r.json().catch(() => null);
     if (!j || !j.ok) return telaLogin((j && j.erro) || 'Não foi possível entrar.');
-    S.token = j.dados.token; S.eu = { nome: j.dados.nome, email: j.dados.email, foto: j.dados.foto };
+    const neg = (j.dados && j.dados.negado) || j.negado;
+    if (neg) { try { google.accounts.id.disableAutoSelect(); } catch (e) {} return telaLogin('A conta ' + neg + ' não tem acesso. Se você integra a Junta de Recursos Fiscais, peça para cadastrarem este e-mail.'); }
+    S.token = j.dados.token; S.eu = { nome: j.dados.nome, email: j.dados.email, foto: j.dados.foto, dono: j.dados.dono !== false };
     LS.set('token', S.token); LS.set('eu', S.eu);
     iniciarApp();
   } catch (e) { telaLogin('Não foi possível entrar. Verifique a conexão.'); }
 }
 async function sair(expirou) {
   const tk = S.token;
-  S.token = ''; S.eu = null; S.dados = null;
+  S.token = ''; S.eu = null; S.dados = null; S.jc = null;
   ['token', 'eu', 'dados'].forEach(LS.del);
   if (!expirou && tk) { try { await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pgm-token': tk }, body: JSON.stringify({ acao: 'sair', token: tk }) }); } catch (e) {} }
   try { google.accounts.id.disableAutoSelect(); } catch (e) {}
@@ -152,6 +154,11 @@ async function sair(expirou) {
 
 // ---------- dados ----------
 async function carregar(forcar) {
+  if (MEMBRO()) {
+    const jc = await jcCarregar(forcar);
+    S.dados = { prazos: [], tarefas: [], ordens: [], jrf: { processos: [], sessoes: [], juris_total: 0 }, hoje: jc.hoje };
+    S.carregadoEm = Date.now(); return S.dados;
+  }
   if (!forcar && S.dados && Date.now() - S.carregadoEm < 45000) return S.dados;
   const [d, j, o] = await Promise.all([api('listar', { filtro: 'todos' }), api('jrf_listar').catch(() => null), apiAg('ordens').catch(() => null)]);
   d.jrf = j || (S.dados && S.dados.jrf) || { processos: [], sessoes: [], juris_total: 0 };
@@ -180,21 +187,24 @@ const ROTAS = [
   { k: 'cghs', t: 'CGHS – Honorários', ic: 'cghs', lat: true }
 ];
 function iniciarApp() {
-  const eu = S.eu || {};
+  const eu = S.eu || {}, mb = MEMBRO();
+  const ROT = mb ? [{ k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' }] : ROTAS;
   const av = fotoEu(eu) ? '<img src="' + esc(fotoEu(eu)) + '" alt="" referrerpolicy="no-referrer">' : esc((eu.nome || '?').slice(0, 1));
   $('#app').innerHTML = '<aside class="side"><div class="marca"><div class="logo"><img src="brasao.png" alt="Brasão de Novo Hamburgo"></div><div><b>Painel Procurador</b><span>PGM · Novo Hamburgo</span></div></div>' +
-    '<nav class="nav">' + ROTAS.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + r.t + '</span><span class="bdg-slot"></span></a>').join('') + '</nav>' +
-    '<div class="nav-tit">Acesso rápido</div><nav class="nav">' + LINKS.map((l) => '<a href="' + l.url + '" target="_blank" rel="noopener" title="' + esc(l.d) + '">' + ic(l.ic) + '<span>' + esc(l.t) + '</span>' + ic('externo', 's ext') + '</a>').join('') + '</nav>' +
+    '<nav class="nav">' + ROT.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + r.t + '</span><span class="bdg-slot"></span></a>').join('') + '</nav>' +
+    (mb ? '' : '<div class="nav-tit">Acesso rápido</div><nav class="nav">' + LINKS.map((l) => '<a href="' + l.url + '" target="_blank" rel="noopener" title="' + esc(l.d) + '">' + ic(l.ic) + '<span>' + esc(l.t) + '</span>' + ic('externo', 's ext') + '</a>').join('') + '</nav>') +
     '<div class="rodape"><div class="av">' + av + '</div><div style="min-width:0"><div class="n">' + esc(eu.nome || '') + '</div><div class="e">' + esc(eu.email || '') + '</div></div><button title="Sair" id="bsair">' + ic('sair') + '</button></div></aside>' +
     '<main class="main"><header class="topo"><h1 id="titulo"></h1><div class="acoes"><button class="btn fant ico" id="btema" title="Alternar tema claro/escuro"></button><button class="btn fant ico" id="batual" title="Atualizar">' + ic('atual') + '</button><button class="btn pri sm" id="bnovo">' + ic('mais2', 's') + '<span>Novo prazo</span></button></div></header><div class="conteudo" id="conteudo"></div></main>' +
-    '<nav class="tabbar">' + ROTAS.filter((r) => !r.lat).map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + (r.tc || r.t) + '</span><span class="bdg-slot"></span></a>').join('') + '<a href="#/mais" data-r="mais">' + ic('mais') + '<span>Mais</span></a></nav>' +
-    '<button class="fab" id="bvoz" title="Falar com o assistente" aria-label="Falar com o assistente">' + ic('mic') + '</button>';
+    (mb ? '' : '<nav class="tabbar">' + ROTAS.filter((r) => !r.lat).map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + (r.tc || r.t) + '</span><span class="bdg-slot"></span></a>').join('') + '<a href="#/mais" data-r="mais">' + ic('mais') + '<span>Mais</span></a></nav>') +
+    (mb ? '' : '<button class="fab" id="bvoz" title="Falar com o assistente" aria-label="Falar com o assistente">' + ic('mic') + '</button>');
   $('#bsair').onclick = () => sair(false);
-  $('#bvoz').onclick = () => abrirAssistente(true);
+  if ($('#bvoz')) $('#bvoz').onclick = () => abrirAssistente(true);
+  if (mb) { $('.marca b').textContent = 'Junta de Recursos'; $('.marca span').textContent = 'Fiscais · Novo Hamburgo'; }
   $('#batual').onclick = () => rota(true);
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
   $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : editarPrazo());
+  if (mb && !location.hash.startsWith('#/junta')) location.hash = '#/junta/virtual';
   if (!location.hash || location.hash === '#/') location.hash = '#/inicio';
   rota();
 }
@@ -211,7 +221,7 @@ function badges() {
 let rodando = 0;
 async function rota(forcar) {
   const [k, arg] = (location.hash.replace(/^#\//, '') || 'inicio').split('/');
-  const v = VIEWS[k] ? k : 'inicio';
+  const v = MEMBRO() ? 'junta' : VIEWS[k] ? k : 'inicio';
   $$('a[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === v));
   $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : v === 'ordens' ? 'Nova tarefa' : 'Novo prazo';
   $('#conteudo').classList.remove('largo');
@@ -496,18 +506,27 @@ function ligarJunta(raiz) {
   $$('[data-nsess]', raiz).forEach((e) => { e.onclick = (ev) => { ev.stopPropagation(); editarSessao(); }; });
   $$('[data-jj]', raiz).forEach((e) => { e.onclick = () => verJuris(e.dataset.jj); });
 }
-function novoJunta() { if (S.jt === 'sessoes') editarSessao(); else if (S.jt === 'juris') editarJuris(); else editarJrf(); }
-const rotuloNovoJunta = () => S.jt === 'sessoes' ? 'Nova sessão' : S.jt === 'juris' ? 'Nova decisão' : 'Novo processo';
+function novoJunta() { if (S.jt === 'virtual') jcNovo(); else if (S.jt === 'sessoes') editarSessao(); else if (S.jt === 'juris') editarJuris(); else editarJrf(); }
+const rotuloNovoJunta = () => S.jt === 'virtual' ? (S.jca === 'sessoes' && jcGestor() ? 'Nova sessão' : 'Novo processo') : S.jt === 'sessoes' ? 'Nova sessão' : S.jt === 'juris' ? 'Nova decisão' : 'Novo processo';
 VIEWS.junta = function (arg) {
-  if (['relatoria', 'sessoes', 'juris'].includes(arg)) S.jt = arg;
-  S.jt = S.jt || 'relatoria'; LS.set('jt', S.jt);
+  const mb = MEMBRO();
+  if (['relatoria', 'sessoes', 'juris', 'virtual'].includes(arg)) S.jt = arg;
+  S.jt = S.jt || 'relatoria'; if (mb && !['virtual', 'juris'].includes(S.jt)) S.jt = 'virtual'; LS.set('jt', S.jt);
+  S.jca = S.jca || LS.get('jca', 'votar');
   titulo(window.innerWidth < 600 ? 'Junta (JRF)' : 'Junta de Recursos Fiscais');
   $('#bnovo span').textContent = rotuloNovoJunta();
   const abertos = jProc().filter(jrfAberto);
-  const seg = '<div class="seg jrf-abas" role="tablist">' + [['relatoria', window.innerWidth < 600 ? 'Relatoria' : 'Minha relatoria', abertos.length], ['sessoes', 'Sessões', jSess().filter((x) => x.data >= hoje()).length], ['juris', 'Jurisprudência', jrf().juris_total || 0]]
-    .map((o) => '<button data-jt="' + o[0] + '" class="' + (S.jt === o[0] ? 'on' : '') + '">' + o[1] + '<span class="n">' + o[2] + '</span></button>').join('') + '</div>';
+  const nVot = S.jc ? jcProcs().filter(aguardaMeuVoto).length : '';
+  const abasJ = mb ? [['virtual', 'Julgamento virtual', nVot], ['juris', 'Jurisprudência', '']]
+    : [['relatoria', window.innerWidth < 600 ? 'Relatoria' : 'Minha relatoria', abertos.length], ['virtual', window.innerWidth < 600 ? 'Virtual' : 'Julgamento virtual', nVot], ['sessoes', 'Sessões', jSess().filter((x) => x.data >= hoje()).length], ['juris', 'Jurisprudência', jrf().juris_total || 0]];
+  const seg = '<div class="seg jrf-abas" role="tablist">' + abasJ
+    .map((o) => '<button data-jt="' + o[0] + '" class="' + (S.jt === o[0] ? 'on' : '') + '">' + o[1] + (o[2] !== '' ? '<span class="n">' + o[2] + '</span>' : '') + '</button>').join('') + '</div>';
+  $('#bnovo').hidden = mb && (S.jt !== 'virtual' || !(S.jc && (S.jc.julgador || S.jc.gestor)));
   let corpo = '';
-  if (S.jt === 'relatoria') {
+  if (S.jt === 'virtual') {
+    corpo = htmlColegiado();
+    if (!S.jc || Date.now() - (S.jcEm || 0) > 30000) jcCarregar(true).then(() => { if (location.hash.startsWith('#/junta') && S.jt === 'virtual' && !$('.veu')) VIEWS.junta(); }).catch((e) => toast(e.message, true));
+  } else if (S.jt === 'relatoria') {
     const f = S.jf || 'abertos', q = (S.jq || '').trim().toLowerCase();
     const lista = jProc().filter((p) => (f === 'todos' || (f === 'abertos' ? jrfAberto(p) : !jrfAberto(p))) &&
       (!q || [p.numero, p.recorrente, p.tributo, p.materia, p.notas, p.acordao].join(' ').toLowerCase().includes(q)));
@@ -526,7 +545,7 @@ VIEWS.junta = function (arg) {
     const opts = (lista, sel, vazioTxt) => '<option value="">' + vazioTxt + '</option>' + lista.map((v) => '<option value="' + esc(v[0]) + '"' + (v[0] === sel ? ' selected' : '') + '>' + esc(v[1]) + '</option>').join('');
     const tribs = Array.from(new Set(TRIBUTOS.concat((r && r.tributos) || []))).sort().map((t) => [t, t]);
     const anos = ((r && r.anos) || []).slice().sort().reverse().map((a) => [a, a]);
-    corpo = '<div id="jimp">' + cardImport() + '</div>' +
+    corpo = (mb ? '' : '<div id="jimp">' + cardImport() + '</div>') +
       '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="jbq" placeholder="Pesquisar na jurisprudência: palavras, acórdão, processo, recorrente…" value="' + esc(b.q) + '" enterkeyhint="search"></label></div>' +
       '<div class="barra jrf-fil"><select class="sel" id="jbt">' + opts(tribs, b.tributo, 'Todos os tributos') + '</select><select class="sel" id="jbr">' + opts(Object.entries(JRES), b.resultado, 'Qualquer resultado') + '</select><select class="sel" id="jba">' + opts(anos, b.ano, 'Todos os anos') + '</select></div>' +
       '<p class="pp mut dica">Dica: use aspas para expressão exata ("local da prestação"), OR para alternativas e – para excluir (IPTU -isenção). A busca reconhece variações das palavras (isenção, isento, isentos).</p>' +
@@ -542,9 +561,9 @@ VIEWS.junta = function (arg) {
     jbq.onkeydown = (e) => { if (e.key === 'Enter') { clearTimeout(tm); S.jb.q = jbq.value; buscarJuris(); } };
     [['#jbt', 'tributo'], ['#jbr', 'resultado'], ['#jba', 'ano']].forEach(([s, k]) => { $(s).onchange = (e) => { S.jb[k] = e.target.value; buscarJuris(); }; });
     if (!S.jr && !S.jbusy) buscarJuris();
-    if (!S.jarq || Date.now() - (S.jarqEm || 0) > 60000) carregarImport(); else ligarImport();
+    if (!mb) { if (!S.jarq || Date.now() - (S.jarqEm || 0) > 60000) carregarImport(); else ligarImport(); }
   }
-  ligarJunta($('#conteudo'));
+  if (S.jt === 'virtual') ligarColegiado($('#conteudo')); else ligarJunta($('#conteudo'));
 };
 const AST = { OK: ['ok', 'importado'], ERRO: ['bad', 'erro'], IGNORADO: ['warn', 'sem decisão'], REPROCESSAR: ['info', 'na fila'] };
 function cardImport() {
@@ -662,7 +681,7 @@ async function verJuris(id) {
     (j.inteiro_teor ? '<details class="teor"><summary>Inteiro teor</summary><div>' + esc(j.inteiro_teor) + '</div></details>' : '');
   const r = await modal({ titulo: j.acordao ? 'Acórdão ' + j.acordao : 'Decisão da Junta', corpo, largo: true, botoes: [
     { txt: 'Copiar ementa', ic: 'doc', cls: 'fant esq', acao: async () => { try { await navigator.clipboard.writeText(j.ementa); toast('Ementa copiada.'); } catch (e) { toast('Não foi possível copiar.', true); } return false; } },
-    { txt: 'Fechar', valor: null }, { txt: 'Editar', ic: 'editar', cls: 'pri', valor: 'editar' }] });
+    { txt: 'Fechar', valor: null }].concat(MEMBRO() ? [] : [{ txt: 'Editar', ic: 'editar', cls: 'pri', valor: 'editar' }]) });
   if (r === 'editar') editarJuris(j);
 }
 function editarJuris(j) {
