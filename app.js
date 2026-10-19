@@ -365,6 +365,9 @@ function calendarioPrazos(lista) {
     '<div class="cal-g">' + ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((x) => '<div class="cal-w">' + x + '</div>').join('') + cel + '</div></div>' +
     (doDia.length ? '<div class="sec-tit" id="cal-dia">Prazos de ' + fdata(S.calDia, true) + ' <span class="bdg">' + doDia.length + '</span></div><div class="card"><div class="lista">' + doDia.map(itemPrazo).join('') + '</div></div>' : '');
 }
+async function copiarPrompt(p) { try { await navigator.clipboard.writeText(p.prompt_minutaia || ''); toast('Prompt copiado.'); } catch (e) { toast('Não foi possível copiar.', true); } }
+document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-cpp]'); if (!b) return; e.stopPropagation(); e.preventDefault(); const p = ((S.dados && S.dados.prazos) || []).find((x) => x.id === b.dataset.cpp); if (p) copiarPrompt(p); }, true);
+document.head.insertAdjacentHTML('beforeend', '<style>.pr-cel{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:1.35;min-width:240px;max-width:380px}.pr-cp{margin-top:4px}.pr-det{white-space:pre-wrap;font-size:13px;line-height:1.45;margin-bottom:6px}</style>');
 const COLS = [
   { c: 'fim', t: 'Prazo', v: (p) => p.fim || '9999' },
   { c: 'tribunal', t: 'Tribunal', v: (p) => p.tribunal },
@@ -372,6 +375,7 @@ const COLS = [
   { c: 'parte', t: 'Parte', v: (p) => (p.parte || '').toLowerCase() },
   { c: 'classe', t: 'Classe', v: (p) => (p.classe || '').toLowerCase() },
   { c: 'providencia', t: 'Providência', v: (p) => (p.providencia || '').toLowerCase() },
+  { c: 'prompt', t: 'Prompt MinutaIA', v: (p) => (p.prompt_minutaia || '~').toLowerCase() },
   { c: 'status', t: 'Situação', v: (p) => Object.keys(STATUS).indexOf(p.status) },
   { c: 'ed', t: 'Embargos', v: (p) => p.ed_cabivel ? (p.ed_prazo || '0') : '~' },
   { c: 'memo', t: 'Memorando', v: (p) => ({ A_ENVIAR: 0, ENVIADO: 1, RESPONDIDO: 2 }[p.memo_status] ?? 3) },
@@ -392,6 +396,7 @@ function tabelaPrazos(lista) {
       '<td class="lg">' + esc(p.parte || '—') + '</td>' +
       '<td class="md">' + esc(p.classe || '—') + '</td>' +
       '<td class="xl">' + esc(p.providencia || p.intimacao || '—') + '</td>' +
+      '<td class="xl">' + (p.prompt_minutaia ? '<div class="pr-cel" title="' + esc(p.prompt_minutaia) + '">' + esc(p.prompt_minutaia) + '</div><button class="btn sm pr-cp" data-cpp="' + esc(p.id) + '">Copiar</button>' : '<span class="mut">—</span>') + '</td>' +
       '<td class="nw"><span class="chip ' + (p.status === 'EM_ELABORACAO' ? 'info' : aberto(p) ? '' : 'ok') + '">' + esc(STATUS[p.status] || p.status) + '</span></td>' +
       '<td class="nw">' + (p.ed_cabivel ? '<span class="chip ouro">Sim' + (p.ed_prazo ? ' · até ' + fdata(p.ed_prazo) : '') + '</span>' : '<span class="mut">Não</span>') + '</td>' +
       '<td class="md">' + (temMemo ? '<span class="chip ' + (p.memo_status === 'RESPONDIDO' ? 'ok' : p.memo_status === 'A_ENVIAR' ? 'warn' : 'info') + '">' + esc(MEMO[p.memo_status].split(' –')[0]) + '</span>' + (p.memo_secretaria ? '<div class="pp mut">' + esc(p.memo_secretaria) + '</div>' : '') : '<span class="mut">Não</span>') + '</td>' +
@@ -908,6 +913,7 @@ function verPrazo(id) {
   const corpo = '<div class="tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="chip nav">' + logoT(p.tribunal) + esc(TRIB[p.tribunal]) + '</span><span class="chip ' + (aberto(p) ? urg(n) : 'ok') + '">' + esc(STATUS[p.status]) + (p.fim && aberto(p) ? ' · ' + rel(n) : '') + '</span>' + (p.origem === 'TRIAGEM' ? '<span class="chip">da triagem</span>' : '') + '</div>' +
     '<dl class="det">' + L('Processo', esc(p.processo)) + L('Classe', esc(p.classe)) + L('Parte contrária', esc(p.parte)) + L('Órgão julgador', esc(p.orgao)) + L('Intimação', esc(p.intimacao)) +
     L('Prazo', (p.inicio ? fdata(p.inicio) + ' a ' : 'até ') + '<b>' + fdata(p.fim, true) + '</b>') + L('Providência / peça', '<b>' + esc(p.providencia) + '</b>') +
+    (p.prompt_minutaia ? L('Prompt MinutaIA', '<div class="pr-det">' + esc(p.prompt_minutaia) + '</div><button class="btn sm" data-cpd>Copiar prompt</button>') : '') +
     L('Embargos de declaração', p.ed_cabivel ? 'Cabíveis' + (p.ed_prazo ? ' – prazo até <b>' + fdata(p.ed_prazo, true) + '</b>' : '') + (p.ed_obs ? '<br><span class="mut">' + esc(p.ed_obs) + '</span>' : '') : 'Não cabíveis') +
     L('Memorando', p.memo_status && p.memo_status !== 'NAO' ? esc(p.memo_secretaria || 'Secretaria não informada') + ' – ' + esc(MEMO[p.memo_status]) + (p.memo_retorno ? '<br><span class="mut">retorno até ' + fdata(p.memo_retorno, true) + '</span>' : '') : 'Não é necessário') +
     L('Teor', esc(p.teor)) + L('Observações', esc(p.observacoes)) + '</dl>' +
@@ -922,10 +928,11 @@ function verPrazo(id) {
     { txt: 'Editar', ic: 'editar', cls: 'pri', valor: 'editar' }
   ] });
   const v = $$('.veu').pop();
+  const cpd = $('[data-cpd]', v); if (cpd) cpd.onclick = () => copiarPrompt(p);
   $$('[data-st]', v).forEach((b) => { b.onclick = async () => { b.disabled = true; try { const r = await api('prazo_status', { id: p.id, status: b.dataset.st }); substituir(S.dados.prazos, r); redesenhar(); v.remove(); toast('Situação: ' + STATUS[r.status] + '.'); } catch (e) { b.disabled = false; toast(e.message, true); } }; });
   $('[data-nt]', v).onclick = () => { v.remove(); editarTarefa({ processo: p.processo, prazo_id: p.id, vencimento: p.fim ? addDias(p.fim, -2) : '' }); };
   $('[data-om]', v).onclick = () => { v.remove(); editarOrdem({ tipo: 'MEMORANDO', processo: p.processo, prazo_id: p.id, dados: { secretaria: p.memo_secretaria || 'Fazenda', anexar_decisao: true } }); };
-  $('[data-omi]', v).onclick = () => { v.remove(); editarOrdem({ tipo: 'MINUTAIA', processo: p.processo, prazo_id: p.id, instrucoes: p.providencia ? 'Peça: ' + p.providencia : '' }); };
+  $('[data-omi]', v).onclick = () => { v.remove(); editarOrdem({ tipo: 'MINUTAIA', processo: p.processo, prazo_id: p.id, instrucoes: p.prompt_minutaia || (p.providencia ? 'Peça: ' + p.providencia : '') }); };
   pr.then((r) => { if (r === 'editar') editarPrazo(p); });
 }
 function editarPrazo(p) {
