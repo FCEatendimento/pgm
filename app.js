@@ -250,7 +250,7 @@ function itemPrazo(p) {
   if (p.ed_cabivel) { const ne = dias(p.ed_prazo); tags.push('<span class="chip ' + (p.ed_prazo && aberto(p) ? (urg(ne) || 'ouro') : 'ouro') + '">ED' + (p.ed_prazo ? ' até ' + fdata(p.ed_prazo) : ' cabíveis') + '</span>'); }
   if (p.memo_status && p.memo_status !== 'NAO') tags.push('<span class="chip ' + (p.memo_status === 'RESPONDIDO' ? 'ok' : p.memo_status === 'A_ENVIAR' ? 'warn' : 'info') + '">Memo' + (p.memo_secretaria ? ' ' + esc(p.memo_secretaria) : '') + ' · ' + esc(MEMO[p.memo_status].split(' –')[0].toLowerCase()) + '</span>');
   return '<div class="item clic" data-p="' + esc(p.id) + '"><span class="dot ' + u + '"></span><div class="mid"><div class="t"><span class="num">' + esc(p.processo) + '</span>' + (p.parte ? '<span class="par"><span class="sep-p"> · </span>' + esc(p.parte) + '</span>' : '') + '</div>' +
-    '<div class="d">' + esc(p.providencia || p.intimacao || p.classe || 'Sem providência definida') + '</div><div class="tags">' + tags.join('') + '</div></div>' +
+    '<div class="d">' + esc(p.providencia || p.intimacao || p.classe || 'Sem providência definida') + '</div>' + (p.prompt_minutaia ? '<div class="pr-li"><b>Prompt MinutaIA:</b> ' + esc(p.prompt_minutaia) + '</div><button class="btn sm pr-cp" data-cpp="' + esc(p.id) + '">Copiar prompt</button>' : '') + '<div class="tags">' + tags.join('') + '</div></div>' +
     '<div class="dir"><span class="data">' + fdata(p.fim) + '</span>' + (p.fim && aberto(p) ? '<span class="chip ' + (u || '') + '">' + rel(n) + '</span>' : '') + '</div></div>';
 }
 function itemTarefa(t) {
@@ -367,7 +367,7 @@ function calendarioPrazos(lista) {
 }
 async function copiarPrompt(p) { try { await navigator.clipboard.writeText(p.prompt_minutaia || ''); toast('Prompt copiado.'); } catch (e) { toast('Não foi possível copiar.', true); } }
 document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-cpp]'); if (!b) return; e.stopPropagation(); e.preventDefault(); const p = ((S.dados && S.dados.prazos) || []).find((x) => x.id === b.dataset.cpp); if (p) copiarPrompt(p); }, true);
-document.head.insertAdjacentHTML('beforeend', '<style>.pr-cel{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:1.35;min-width:240px;max-width:380px}.pr-cp{margin-top:4px}.pr-det{white-space:pre-wrap;font-size:13px;line-height:1.45;margin-bottom:6px}</style>');
+document.head.insertAdjacentHTML('beforeend', '<style>.pr-cel{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:1.35;min-width:240px;max-width:380px}.pr-cp{margin-top:4px}.pr-li{font-size:12px;line-height:1.35;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.pr-det{white-space:pre-wrap;font-size:13px;line-height:1.45;margin-bottom:6px}</style>');
 const COLS = [
   { c: 'fim', t: 'Prazo', v: (p) => p.fim || '9999' },
   { c: 'tribunal', t: 'Tribunal', v: (p) => p.tribunal },
