@@ -377,8 +377,8 @@ const COLS = [
   { c: 'providencia', t: 'Providência', v: (p) => (p.providencia || '').toLowerCase() },
   { c: 'prompt', t: 'Prompt MinutaIA', v: (p) => (p.prompt_minutaia || '~').toLowerCase() },
   { c: 'status', t: 'Situação', v: (p) => Object.keys(STATUS).indexOf(p.status) },
-  { c: 'ed', t: 'Embargos', v: (p) => p.ed_cabivel ? (p.ed_prazo || '0') : '~' },
-  { c: 'memo', t: 'Memorando', v: (p) => ({ A_ENVIAR: 0, ENVIADO: 1, RESPONDIDO: 2 }[p.memo_status] ?? 3) },
+  { c: 'ed', t: 'Embargos de declaração', v: (p) => p.ed_cabivel ? (p.ed_prazo || '0') : '~' },
+  { c: 'memo', t: 'Enviar memorando?', v: (p) => ({ A_ENVIAR: 0, ENVIADO: 1, RESPONDIDO: 2 }[p.memo_status] ?? 3) },
   { c: 'retorno', t: 'Retorno memo', v: (p) => p.memo_status && p.memo_status !== 'NAO' ? (p.memo_retorno || (p.fim ? addDias(p.fim, -7) : '9999')) : '~' }
 ];
 function tabelaPrazos(lista) {
