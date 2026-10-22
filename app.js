@@ -44,7 +44,8 @@ const IC = {
   fila: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h5"/><circle cx="16.5" cy="15" r="2.2"/>',
   cghs: '<circle cx="9" cy="9" r="6"/><path d="M9 6.5v5M7.3 7.6c.3-.7 1-1 1.7-1 1 0 1.7.5 1.7 1.2 0 1.6-3.4.9-3.4 2.4 0 .7.7 1.3 1.7 1.3.8 0 1.4-.3 1.7-1"/><path d="M15.5 9.2A6 6 0 1 1 9.2 15.5"/>',
   junta: '<path d="M12 3v17M8 20h8"/><path d="M4 7h16"/><path d="M6 7l-3 6a3 3 0 0 0 6 0z"/><path d="M18 7l-3 6a3 3 0 0 0 6 0z"/>',
-  tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>'
+  tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>',
+  arquivo: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/>'
 };
 const LINKS = [
   { t: 'Caixa de memorandos', d: 'memo.novohamburgo.rs.gov.br', url: 'https://memo.novohamburgo.rs.gov.br', ic: 'doc' },
@@ -62,12 +63,15 @@ const STATUS = { PENDENTE: 'A fazer', EM_ELABORACAO: 'Em elaboração', PROTOCOL
 const MEMO = { NAO: 'Sem memorando', A_ENVIAR: 'A enviar', ENVIADO: 'Enviado – aguardando', RESPONDIDO: 'Respondido' };
 const SECRETARIAS = ['Fazenda', 'Administração', 'Saúde', 'Educação', 'Obras e Serviços Urbanos', 'Desenvolvimento Urbano e Habitação', 'Meio Ambiente', 'Desenvolvimento Social', 'Segurança', 'Mobilidade Urbana', 'Cultura', 'Esporte e Lazer', 'Gabinete do Prefeito', 'PROCON', 'COMUSA', 'Previdência (IPASEM)'];
 const ABERTOS = ['PENDENTE', 'EM_ELABORACAO'];
+// Prazo antigo: o dia do vencimento já terminou (vai para a aba "Prazos antigos").
+const antigo = (p) => !!(p.fim && p.fim < hoje());
 
 // ---------- estado ----------
 const S = {
   token: LS.get('token', ''), eu: LS.get('eu', null),
   dados: LS.get('dados', null), carregadoEm: 0,
   f: Object.assign({ sit: 'abertos', trib: '', marca: '', q: '' }, LS.get('filtros', {})),
+  fa: Object.assign({ sit: 'todos', trib: '', marca: '', q: '' }, LS.get('filtrosA', {})),
   ft: 'abertas',
   vis: LS.get('vis', 'lista'), ord: LS.get('ord', { c: 'fim', d: 1 }),
   jt: LS.get('jt', 'relatoria'), jf: 'abertos', jq: '', jb: { q: '', tributo: '', resultado: '', ano: '' }, jr: null
@@ -181,6 +185,7 @@ function ordenar() {
 const ROTAS = [
   { k: 'inicio', t: 'Início', ic: 'casa' },
   { k: 'prazos', t: 'Prazos', ic: 'prazo' },
+  { k: 'antigos', t: 'Prazos antigos', tc: 'Antigos', ic: 'arquivo', lat: true },
   { k: 'ordens', t: 'Lista de Tarefas', tc: 'Tarefas', ic: 'fila' },
   { k: 'memorandos', t: 'Memorandos', tc: 'Memos', ic: 'memo' },
   { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' },
@@ -210,12 +215,13 @@ function iniciarApp() {
 }
 function badges() {
   const h = hoje();
-  const urg = prazos().filter((p) => aberto(p) && p.fim && p.fim <= h).length;
+  const urg = prazos().filter((p) => aberto(p) && p.fim === h).length;
+  const venc = prazos().filter((p) => aberto(p) && p.fim && p.fim < h).length;
   const tar = tarefas().filter((t) => t.status === 'ABERTA' && t.vencimento && t.vencimento <= h).length;
   const mem = prazos().filter((p) => aberto(p) && p.memo_status === 'A_ENVIAR').length;
   const set = (k, n, r) => $$('a[data-r="' + k + '"] .bdg-slot').forEach((e) => { e.innerHTML = n ? '<span class="bdg' + (r ? ' r' : '') + '">' + n + '</span>' : ''; });
   const jv = ((S.dados && S.dados.jrf && S.dados.jrf.processos) || []).filter((p) => !['JULGADO', 'ARQUIVADO'].includes(p.status) && p.prazo_voto && p.prazo_voto <= addDias(h, 3)).length;
-  set('prazos', urg, true); set('memorandos', mem, false); set('junta', jv, true);
+  set('prazos', urg, true); set('antigos', venc, true); set('memorandos', mem, false); set('junta', jv, true);
   set('ordens', ((S.dados && S.dados.ordens) || []).filter((o) => ['AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)).length, true);
 }
 let rodando = 0;
@@ -273,7 +279,7 @@ const vazio = (txt, i) => '<div class="vazio">' + ic(i || 'check') + esc(txt) + 
 const VIEWS = {};
 VIEWS.inicio = function () {
   titulo('Início');
-  const h = hoje(), ab = prazos().filter(aberto);
+  const h = hoje(), ab = prazos().filter(aberto), abAt = ab.filter((p) => !antigo(p));
   const atras = ab.filter((p) => p.fim && p.fim < h), hj = ab.filter((p) => p.fim === h);
   const sem7 = ab.filter((p) => p.fim && p.fim > h && p.fim <= addDias(h, 7));
   const ed = ab.filter((p) => p.ed_cabivel && (!p.ed_prazo || p.ed_prazo >= h));
@@ -291,25 +297,33 @@ VIEWS.inicio = function () {
     kpi('Memorandos', memA.length + memE.length, memA.length + ' a enviar · ' + memE.length + ' aguardando', 'memo', '', 'memo') +
     '</div>' +
     '<div class="grid g2" style="margin-top:16px"><div class="card"><div class="cab"><h2>Próximos vencimentos</h2><div class="dir"><a class="btn fant sm" href="#/prazos">Ver todos</a></div></div><div class="lista" id="l1">' +
-    (ab.slice(0, 8).map(itemPrazo).join('') || vazio('Nenhum prazo aberto.')) + '</div></div>' +
+    (abAt.slice(0, 8).map(itemPrazo).join('') || vazio('Nenhum prazo aberto.')) + '</div></div>' +
     '<div class="card"><div class="cab"><h2>Lista de Tarefas</h2><div class="dir"><a class="btn fant sm" href="#/ordens">Ver todas</a></div></div><div class="lista" id="l2">' +
     (ordensLista().filter(ordemAberta).slice(0, 7).map(itemOrdem).join('') || vazio('Nenhuma tarefa na lista.', 'fila')) + '</div></div></div>' +
     '<div class="sec-tit">Junta de Recursos Fiscais <a class="btn fant sm" href="#/junta" style="margin-left:auto">Abrir</a></div>' + cardProxSessao() +
     (() => { const l = jProc().filter(jrfAberto).slice(0, 5); return l.length ? '<div class="card" style="margin-top:12px"><div class="lista">' + l.map(itemJrf).join('') + '</div></div>' : ''; })() +
     '<div class="rodape-app">TJRS 1º e 2º graus · TRF4 1º e 2º graus · Junta de Recursos Fiscais</div>';
-  $$('[data-go]').forEach((e) => { e.onclick = () => { const g = e.dataset.go; if (g === 'memo') { location.hash = '#/memorandos'; return; } Object.assign(S.f, { sit: 'abertos', trib: '', marca: g, q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; }; });
+  $$('[data-go]').forEach((e) => { e.onclick = () => { const g = e.dataset.go; if (g === 'memo') { location.hash = '#/memorandos'; return; } if (g === 'atrasados') { Object.assign(S.fa, { sit: 'abertos', trib: '', marca: '', q: '' }); LS.set('filtrosA', S.fa); location.hash = '#/antigos'; return; } Object.assign(S.f, { sit: 'abertos', trib: '', marca: g, q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; }; });
   ligarListas($('#conteudo')); ligarJunta($('#conteudo'));
   $$('[data-o]').forEach((e) => { e.onclick = () => verOrdem(ordensLista().find((o) => o.id === e.dataset.o)); });
 };
-VIEWS.prazos = function () {
-  titulo('Prazos');
-  const h = hoje(), f = S.f;
+VIEWS.prazos = function () { telaPrazos(false); };
+VIEWS.antigos = function () { telaPrazos(true); };
+function telaPrazos(ant) {
+  titulo(ant ? 'Prazos antigos' : 'Prazos');
+  const h = hoje(), f = ant ? S.fa : S.f, chF = ant ? 'filtrosA' : 'filtros', rr = () => (ant ? VIEWS.antigos() : VIEWS.prazos());
+  const universo = prazos().filter((p) => antigo(p) === ant);
   const porSit = (p) => f.sit === 'abertos' ? aberto(p) : f.sit === 'concluidos' ? ['PROTOCOLADO', 'CIENCIA'].includes(p.status) : f.sit === 'arquivados' ? p.status === 'ARQUIVADO' : true;
-  const base = prazos().filter(porSit);
-  const MARCAS = {
-    atrasados: ['Vencidos', (p) => p.fim && p.fim < h], hoje: ['Hoje', (p) => p.fim === h], '7dias': ['7 dias', (p) => p.fim && p.fim >= h && p.fim <= addDias(h, 7)],
+  const base = universo.filter(porSit);
+  if (ant) base.sort((a, b) => String(b.fim).localeCompare(String(a.fim)) || String(a.processo).localeCompare(String(b.processo)));
+  const MARCAS = ant ? {
+    semana: ['Últimos 7 dias', (p) => p.fim >= addDias(h, -7)], mes: ['Últimos 30 dias', (p) => p.fim >= addDias(h, -30)],
+    ed: ['Com ED', (p) => p.ed_cabivel], memo: ['Com memorando', (p) => p.memo_status && p.memo_status !== 'NAO']
+  } : {
+    hoje: ['Hoje', (p) => p.fim === h], '7dias': ['7 dias', (p) => p.fim && p.fim >= h && p.fim <= addDias(h, 7)],
     ed: ['Com ED', (p) => p.ed_cabivel], memo: ['Com memorando', (p) => p.memo_status && p.memo_status !== 'NAO']
   };
+  if (f.marca && !MARCAS[f.marca]) f.marca = '';
   const q = f.q.trim().toLowerCase();
   const lista = base.filter((p) => (!f.trib || p.tribunal === f.trib) && (!f.marca || !MARCAS[f.marca] || MARCAS[f.marca][1](p)) &&
     (!q || [p.processo, p.parte, p.classe, p.providencia, p.intimacao, p.orgao, p.memo_secretaria, p.observacoes].join(' ').toLowerCase().includes(q)));
@@ -319,19 +333,19 @@ VIEWS.prazos = function () {
   $('#conteudo').classList.toggle('largo', vis !== 'lista');
   $('#conteudo').innerHTML = '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="q" placeholder="Buscar processo, parte, peça, secretaria…" value="' + esc(f.q) + '"></label>' +
     '<div class="seg" role="group" aria-label="Formato">' + [['lista', 'Lista', 'lista'], ['tabela', 'Tabela', 'tabela'], ['calendario', 'Calendário', 'hoje']].map((o) => '<button data-vis="' + o[0] + '" class="' + (vis === o[0] ? 'on' : '') + '" title="Ver em ' + o[1].toLowerCase() + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div></div>' +
-    '<div class="filtros">' + bt('sit', 'abertos', 'Abertos', prazos().filter(aberto).length) + bt('sit', 'concluidos', 'Concluídos') + bt('sit', 'arquivados', 'Arquivados') + bt('sit', 'todos', 'Todos') +
+    '<div class="filtros">' + bt('sit', 'abertos', ant ? 'Não cumpridos' : 'Abertos', universo.filter(aberto).length) + bt('sit', 'concluidos', 'Concluídos') + bt('sit', 'arquivados', 'Arquivados') + bt('sit', 'todos', 'Todos') +
     '<span class="sep"></span>' + bt('trib', '', 'Todos os tribunais') + Object.keys(TRIB).map((k) => bt('trib', k, logoT(k) + TRIB_CURTO[k], cnt((p) => p.tribunal === k))).join('') + '</div>' +
     '<div class="filtros" style="margin-top:-4px">' + bt('marca', '', 'Sem filtro') + Object.keys(MARCAS).map((k) => bt('marca', k, MARCAS[k][0], cnt(MARCAS[k][1]))).join('') + '</div>' +
-    (!lista.length ? '<div class="card">' + vazio(prazos().length ? 'Nenhum prazo com esses filtros.' : 'Nenhum prazo cadastrado ainda.', 'prazo') + '</div>'
+    (!lista.length ? '<div class="card">' + vazio(universo.length ? 'Nenhum prazo com esses filtros.' : ant ? 'Nenhum prazo antigo ainda.' : 'Nenhum prazo cadastrado ainda.', ant ? 'arquivo' : 'prazo') + '</div>'
       : vis === 'calendario' ? calendarioPrazos(lista) : vis === 'tabela' ? tabelaPrazos(lista) : '<div class="card"><div class="lista">' + lista.map(itemPrazo).join('') + '</div></div>') +
-    '<p class="pp mut" style="margin:10px 2px">' + lista.length + ' prazo(s)</p>';
-  $$('[data-vis]').forEach((b) => { b.onclick = () => { S.vis = b.dataset.vis; LS.set('vis', S.vis); VIEWS.prazos(); }; });
-  $$('[data-cal]').forEach((b) => { b.onclick = () => { const v = b.dataset.cal; S.calMes = v === 'hoje' ? hoje().slice(0, 7) : v; S.calDia = v === 'hoje' ? hoje() : ''; VIEWS.prazos(); }; });
-  $$('[data-dia]').forEach((c) => { c.onclick = () => { S.calDia = S.calDia === c.dataset.dia ? '' : c.dataset.dia; VIEWS.prazos(); const a = $('#cal-dia'); if (a && S.calDia) a.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }; });
-  $$('th[data-oc]').forEach((th) => { th.onclick = () => { const c = th.dataset.oc; S.ord = { c, d: S.ord.c === c ? -S.ord.d : 1 }; LS.set('ord', S.ord); VIEWS.prazos(); }; });
-  $$('[data-sit],[data-trib],[data-marca]').forEach((b) => { b.onclick = () => { const g = b.dataset.sit !== undefined ? 'sit' : b.dataset.trib !== undefined ? 'trib' : 'marca'; S.f[g] = b.dataset[g]; LS.set('filtros', S.f); VIEWS.prazos(); }; });
+    '<p class="pp mut" style="margin:10px 2px">' + lista.length + ' prazo(s)' + (ant ? ' · prazos cujo dia do vencimento já terminou' : ' · os vencidos passam automaticamente para <a href="#/antigos">Prazos antigos</a>') + '</p>';
+  $$('[data-vis]').forEach((b) => { b.onclick = () => { S.vis = b.dataset.vis; LS.set('vis', S.vis); rr(); }; });
+  $$('[data-cal]').forEach((b) => { b.onclick = () => { const v = b.dataset.cal; S.calMes = v === 'hoje' ? hoje().slice(0, 7) : v; S.calDia = v === 'hoje' ? hoje() : ''; rr(); }; });
+  $$('[data-dia]').forEach((c) => { c.onclick = () => { S.calDia = S.calDia === c.dataset.dia ? '' : c.dataset.dia; rr(); const a = $('#cal-dia'); if (a && S.calDia) a.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }; });
+  $$('th[data-oc]').forEach((th) => { th.onclick = () => { const c = th.dataset.oc; S.ord = { c, d: S.ord.c === c ? -S.ord.d : 1 }; LS.set('ord', S.ord); rr(); }; });
+  $$('[data-sit],[data-trib],[data-marca]').forEach((b) => { b.onclick = () => { const g = b.dataset.sit !== undefined ? 'sit' : b.dataset.trib !== undefined ? 'trib' : 'marca'; f[g] = b.dataset[g]; LS.set(chF, f); rr(); }; });
   const qi = $('#q'); let tm;
-  qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { S.f.q = qi.value; LS.set('filtros', S.f); const pos = qi.selectionStart; VIEWS.prazos(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); }, 250); };
+  qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { f.q = qi.value; LS.set(chF, f); const pos = qi.selectionStart; rr(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); }, 250); };
   ligarListas($('#conteudo'));
 };
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -446,6 +460,7 @@ VIEWS.mais = function () {
   const tema = document.documentElement.dataset.tema || 'auto';
   $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px"><div class="lista"><div class="item"><div class="av">' + (fotoEu(eu) ? '<img src="' + esc(fotoEu(eu)) + '" alt="" referrerpolicy="no-referrer">' : '') + '</div><div class="mid"><div class="t">' + esc(eu.nome || '') + '</div><div class="d">' + esc(eu.email || '') + '</div></div></div>' +
     '<div class="item">' + ic(temaEfetivo() === 'escuro' ? 'lua' : 'sol') + '<div class="mid"><div class="t">Tema</div><div class="seg" style="margin-top:8px">' + [['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map((o) => '<button data-tema="' + o[0] + '" class="' + (tema === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div></div>' +
+    '<a class="item clic" href="#/antigos">' + ic('arquivo') + '<div class="mid"><div class="t">Prazos antigos</div><div class="d">Prazos cujo dia do vencimento já terminou</div></div></a>' +
     '<a class="item clic" href="#/cghs">' + ic('cghs') + '<div class="mid"><div class="t">CGHS – Honorários</div><div class="d">Arquivos mensais dos honorários e controle online</div></div></a>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
     '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>' +
