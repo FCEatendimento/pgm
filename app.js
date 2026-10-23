@@ -45,7 +45,8 @@ const IC = {
   cghs: '<circle cx="9" cy="9" r="6"/><path d="M9 6.5v5M7.3 7.6c.3-.7 1-1 1.7-1 1 0 1.7.5 1.7 1.2 0 1.6-3.4.9-3.4 2.4 0 .7.7 1.3 1.7 1.3.8 0 1.4-.3 1.7-1"/><path d="M15.5 9.2A6 6 0 1 1 9.2 15.5"/>',
   junta: '<path d="M12 3v17M8 20h8"/><path d="M4 7h16"/><path d="M6 7l-3 6a3 3 0 0 0 6 0z"/><path d="M18 7l-3 6a3 3 0 0 0 6 0z"/>',
   tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>',
-  arquivo: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/>'
+  arquivo: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/>',
+  martelo: '<path d="M14.5 3.5l6 6"/><path d="M11.5 6.5l6 6"/><path d="M13 5l-4.5 4.5 6 6L19 11"/><path d="M11.2 12.8L4 20"/><path d="M3 21h8"/>'
 };
 const LINKS = [
   { t: 'Caixa de memorandos', d: 'memo.novohamburgo.rs.gov.br', url: 'https://memo.novohamburgo.rs.gov.br', ic: 'doc' },
@@ -172,6 +173,7 @@ async function carregar(forcar) {
 }
 const prazos = () => (S.dados && S.dados.prazos) || [];
 const tarefas = () => (S.dados && S.dados.tarefas) || [];
+const cumprimentos = () => (S.dados && S.dados.cumprimentos) || [];
 const aberto = (p) => ABERTOS.includes(p.status);
 function substituir(lista, obj) { const i = lista.findIndex((x) => x.id === obj.id); if (i >= 0) lista[i] = obj; else lista.push(obj); }
 function ordenar() {
@@ -189,6 +191,7 @@ const ROTAS = [
   { k: 'ordens', t: 'Lista de Tarefas', tc: 'Tarefas', ic: 'fila' },
   { k: 'memorandos', t: 'Memorandos', tc: 'Memos', ic: 'memo' },
   { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' },
+  { k: 'cumprimentos', t: 'Cumprimentos de sentença', tc: 'Cumprimentos', ic: 'martelo', lat: true },
   { k: 'cghs', t: 'CGHS – Honorários', ic: 'cghs', lat: true }
 ];
 function iniciarApp() {
@@ -208,7 +211,7 @@ function iniciarApp() {
   $('#batual').onclick = () => rota(true);
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
-  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : editarPrazo());
+  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : location.hash.startsWith('#/cumprimentos') ? editarCumprimento() : editarPrazo());
   if (mb && !location.hash.startsWith('#/junta')) location.hash = '#/junta/virtual';
   if (!location.hash || location.hash === '#/') location.hash = '#/inicio';
   rota();
@@ -221,7 +224,7 @@ function badges() {
   const mem = prazos().filter((p) => aberto(p) && p.memo_status === 'A_ENVIAR').length;
   const set = (k, n, r) => $$('a[data-r="' + k + '"] .bdg-slot').forEach((e) => { e.innerHTML = n ? '<span class="bdg' + (r ? ' r' : '') + '">' + n + '</span>' : ''; });
   const jv = ((S.dados && S.dados.jrf && S.dados.jrf.processos) || []).filter((p) => !['JULGADO', 'ARQUIVADO'].includes(p.status) && p.prazo_voto && p.prazo_voto <= addDias(h, 3)).length;
-  set('prazos', urg, true); set('antigos', venc, true); set('memorandos', mem, false); set('junta', jv, true);
+  set('prazos', urg, true); set('antigos', venc, true); set('cumprimentos', cumprimentos().filter((c) => c.situacao === 'A_EXECUTAR').length, false); set('memorandos', mem, false); set('junta', jv, true);
   set('ordens', ((S.dados && S.dados.ordens) || []).filter((o) => ['AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)).length, true);
 }
 let rodando = 0;
@@ -229,7 +232,7 @@ async function rota(forcar) {
   const [k, arg] = (location.hash.replace(/^#\//, '') || 'inicio').split('/');
   const v = MEMBRO() ? 'junta' : VIEWS[k] ? k : 'inicio';
   $$('a[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === v));
-  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : v === 'ordens' ? 'Nova tarefa' : 'Novo prazo';
+  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : v === 'ordens' ? 'Nova tarefa' : v === 'cumprimentos' ? 'Novo cumprimento' : 'Novo prazo';
   $('#conteudo').classList.remove('largo');
   const meu = ++rodando;
   if (!S.dados) $('#conteudo').innerHTML = '<div class="carregando"><div class="spin"></div></div>';
@@ -461,6 +464,7 @@ VIEWS.mais = function () {
   $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px"><div class="lista"><div class="item"><div class="av">' + (fotoEu(eu) ? '<img src="' + esc(fotoEu(eu)) + '" alt="" referrerpolicy="no-referrer">' : '') + '</div><div class="mid"><div class="t">' + esc(eu.nome || '') + '</div><div class="d">' + esc(eu.email || '') + '</div></div></div>' +
     '<div class="item">' + ic(temaEfetivo() === 'escuro' ? 'lua' : 'sol') + '<div class="mid"><div class="t">Tema</div><div class="seg" style="margin-top:8px">' + [['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map((o) => '<button data-tema="' + o[0] + '" class="' + (tema === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div></div>' +
     '<a class="item clic" href="#/antigos">' + ic('arquivo') + '<div class="mid"><div class="t">Prazos antigos</div><div class="d">Prazos cujo dia do vencimento já terminou</div></div></a>' +
+    '<a class="item clic" href="#/cumprimentos">' + ic('martelo') + '<div class="mid"><div class="t">Cumprimentos de sentença</div><div class="d">Honorários sucumbenciais a executar pelo Município</div></div></a>' +
     '<a class="item clic" href="#/cghs">' + ic('cghs') + '<div class="mid"><div class="t">CGHS – Honorários</div><div class="d">Arquivos mensais dos honorários e controle online</div></div></a>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
     '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>' +
@@ -919,6 +923,66 @@ function editarOrdem(pre) {
 }
 
 // ---------- ações ----------
+// ---------- cumprimentos de sentença (honorários sucumbenciais a executar) ----------
+const SIT_CS = { AGUARDANDO_TRANSITO: 'Aguardando trânsito', A_EXECUTAR: 'A executar', EM_EXECUCAO: 'Em execução', PAGO: 'Pago', ARQUIVADO: 'Arquivado' };
+const COR_CS = { AGUARDANDO_TRANSITO: 'info', A_EXECUTAR: 'warn', EM_EXECUCAO: 'ouro', PAGO: 'ok', ARQUIVADO: '' };
+const fmoeda = (v) => v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+S.fc = S.fc || 'ativos'; S.qc = S.qc || '';
+VIEWS.cumprimentos = function () {
+  titulo('Cumprimentos de sentença');
+  const todos = cumprimentos();
+  const ativo = (c) => !['PAGO', 'ARQUIVADO'].includes(c.situacao);
+  const q = S.qc.trim().toLowerCase();
+  const lista = todos.filter((c) => (S.fc === 'todos' || (S.fc === 'ativos' ? ativo(c) : c.situacao === S.fc)) &&
+    (!q || [c.processo, c.devedor, c.classe, c.honorarios, c.observacoes, c.processo_cumprimento].join(' ').toLowerCase().includes(q)));
+  const n = (k) => todos.filter((c) => c.situacao === k).length;
+  const bt = (v, t, k) => '<button data-fc="' + v + '" class="' + (S.fc === v ? 'on' : '') + '">' + t + (k !== undefined ? '<span class="n">' + k + '</span>' : '') + '</button>';
+  $('#conteudo').innerHTML = '<p class="mut pq" style="margin:14px 2px 0">Processos em que o Município tem honorários sucumbenciais a executar, observados na triagem dos processos. Executar após o trânsito em julgado.</p>' +
+    '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="qcs" placeholder="Buscar processo, devedor ou observação" value="' + esc(S.qc) + '"></label></div>' +
+    '<div class="filtros">' + bt('ativos', 'Ativos', todos.filter(ativo).length) + bt('A_EXECUTAR', 'A executar', n('A_EXECUTAR')) + bt('AGUARDANDO_TRANSITO', 'Aguardando trânsito', n('AGUARDANDO_TRANSITO')) +
+    bt('EM_EXECUCAO', 'Em execução', n('EM_EXECUCAO')) + bt('PAGO', 'Pagos', n('PAGO')) + bt('ARQUIVADO', 'Arquivados', n('ARQUIVADO')) + bt('todos', 'Todos') + '</div>' +
+    '<div class="card"><div class="lista">' + (lista.map(itemCumprimento).join('') || vazio('Nenhum processo nesta situação.', 'martelo')) + '</div></div>';
+  $$('[data-fc]').forEach((b) => { b.onclick = () => { S.fc = b.dataset.fc; VIEWS.cumprimentos(); }; });
+  const qi = $('#qcs'); qi.oninput = () => { S.qc = qi.value; const pos = qi.selectionStart; VIEWS.cumprimentos(); const n2 = $('#qcs'); n2.focus(); n2.setSelectionRange(pos, pos); };
+  $$('[data-cs]').forEach((e) => { e.onclick = (ev) => { if (ev.target.closest('[data-csn]')) return; editarCumprimento(cumprimentos().find((c) => c.id === e.dataset.cs)); }; });
+  $$('[data-csn]').forEach((b) => { b.onclick = async (ev) => {
+    ev.stopPropagation(); b.disabled = true;
+    try { const r = await api('cs_situacao', { id: b.dataset.id, situacao: b.dataset.csn }); substituir(S.dados.cumprimentos, r); redesenhar(); toast('Situação: ' + SIT_CS[r.situacao] + '.'); }
+    catch (e) { b.disabled = false; toast(e.message, true); }
+  }; });
+};
+function itemCumprimento(c) {
+  const prox = c.situacao === 'AGUARDANDO_TRANSITO' ? ['A_EXECUTAR', 'Transitou'] : c.situacao === 'A_EXECUTAR' ? ['EM_EXECUCAO', 'Execução iniciada'] : c.situacao === 'EM_EXECUCAO' ? ['PAGO', 'Marcar pago'] : null;
+  const tags = ['<span class="chip nav">' + logoT(c.tribunal) + esc(TRIB_CURTO[c.tribunal] || c.tribunal) + '</span>', '<span class="chip ' + (COR_CS[c.situacao] || '') + '">' + esc(SIT_CS[c.situacao] || c.situacao) + '</span>'];
+  if (c.transito) tags.push('<span class="chip">trânsito ' + fdata(c.transito) + '</span>');
+  if (c.processo_cumprimento) tags.push('<span class="chip">cumprimento ' + esc(c.processo_cumprimento) + '</span>');
+  return '<div class="item clic" data-cs="' + esc(c.id) + '"><span class="dot ' + (c.situacao === 'A_EXECUTAR' ? 'warn' : c.situacao === 'PAGO' ? 'ok' : '') + '"></span><div class="mid"><div class="t"><span class="num">' + esc(c.processo) + '</span>' + (c.devedor ? '<span class="par"><span class="sep-p"> · </span>' + esc(c.devedor) + '</span>' : '') + '</div>' +
+    '<div class="d">' + esc(c.honorarios || c.titulo || c.classe || '') + '</div>' + (c.observacoes ? '<div class="d mut">' + esc(c.observacoes) + '</div>' : '') + '<div class="tags">' + tags.join('') + '</div></div>' +
+    '<div class="dir">' + (c.valor ? '<span class="data">' + fmoeda(c.valor) + '</span>' : '') + (prox ? '<button class="btn sm" data-csn="' + prox[0] + '" data-id="' + esc(c.id) + '">' + prox[1] + '</button>' : '') + '</div></div>';
+}
+function editarCumprimento(c) {
+  c = c || {};
+  const sel = (nome, op, atual) => '<select class="sel" name="' + nome + '">' + Object.entries(op).map(([k, t]) => '<option value="' + k + '"' + (atual === k ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select>';
+  const corpo = '<form class="form" id="fcs" autocomplete="off">' +
+    '<label>Processo<input class="inp" name="processo" value="' + esc(c.processo || '') + '" required></label>' +
+    '<label>Tribunal' + sel('tribunal', TRIB, c.tribunal || 'TJRS1') + '</label>' +
+    '<label class="full">Devedor dos honorários<input class="inp" name="devedor" value="' + esc(c.devedor || '') + '"></label>' +
+    '<label class="full">Classe / ação<input class="inp" name="classe" value="' + esc(c.classe || '') + '"></label>' +
+    '<label class="full">Título (sentença/acórdão, evento)<input class="inp" name="titulo" value="' + esc(c.titulo || '') + '"></label>' +
+    '<label class="full">Honorários (percentual e base)<input class="inp" name="honorarios" value="' + esc(c.honorarios || '') + '"></label>' +
+    '<label>Valor estimado (R$)<input class="inp" name="valor" inputmode="decimal" value="' + esc(c.valor ? String(c.valor).replace('.', ',') : '') + '"></label>' +
+    '<label>Trânsito em julgado<input class="inp" type="date" name="transito" value="' + esc(c.transito || '') + '"></label>' +
+    '<label>Situação' + sel('situacao', SIT_CS, c.situacao || 'AGUARDANDO_TRANSITO') + '</label>' +
+    '<label>Nº do cumprimento<input class="inp" name="processo_cumprimento" value="' + esc(c.processo_cumprimento || '') + '"></label>' +
+    '<label class="full">Observações<textarea class="inp" name="observacoes" style="min-height:80px">' + esc(c.observacoes || '') + '</textarea></label></form>';
+  const botoes = [{ txt: 'Cancelar', valor: null }, { txt: 'Salvar', cls: 'pri', ic: 'check', acao: async (v) => {
+    const d = Object.fromEntries(new FormData($('#fcs', v)).entries()); d.id = c.id || null; d.prazo_id = c.prazo_id || null;
+    if (!String(d.processo || '').trim()) { toast('Informe o número do processo.', true); return false; }
+    const r = await api('cs_salvar', { cumprimento: d }); S.dados.cumprimentos = S.dados.cumprimentos || []; substituir(S.dados.cumprimentos, r); redesenhar(); toast(c.id ? 'Registro atualizado.' : 'Processo incluído.');
+  } }];
+  if (c.id) botoes.unshift({ txt: 'Excluir', ic: 'lixo', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Excluir', 'Excluir ' + c.processo + ' dos cumprimentos de sentença?', 'Excluir', true))) return false; await api('cs_excluir', { id: c.id }); S.dados.cumprimentos = cumprimentos().filter((x) => x.id !== c.id); redesenhar(); toast('Registro excluído.'); } });
+  modal({ titulo: c.id ? 'Cumprimento de sentença' : 'Novo cumprimento de sentença', corpo, botoes, largo: true });
+}
 function redesenhar() { ordenar(); rotaSemCarregar(); badges(); }
 function rotaSemCarregar() { const [k, arg] = (location.hash.replace(/^#\//, '') || 'inicio').split('/'); (VIEWS[k] || VIEWS.inicio)(arg); }
 function verPrazo(id) {
