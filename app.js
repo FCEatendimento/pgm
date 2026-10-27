@@ -372,8 +372,10 @@ function calendarioPrazos(lista) {
     totMes += ps.length;
     const c = {}; ps.forEach((p) => { c[p.tribunal] = (c[p.tribunal] || 0) + 1; });
     const venc = k < h && ps.some(aberto);
+    const mP = ps.filter((p) => p.memo_status === 'A_ENVIAR').length, mE = ps.filter((p) => p.memo_status === 'ENVIADO' || p.memo_status === 'RESPONDIDO').length;
+    const memoD = (mP ? '<span class="cal-m pend" title="' + mP + ' memorando(s) a enviar">' + ic('memo') + '<span class="cal-ms">Memo</span><b>' + mP + '</b></span>' : '') + (mE ? '<span class="cal-m env" title="' + mE + ' memorando(s) enviado(s)">' + ic('memo') + '<span class="cal-ms">Memo</span><b>' + mE + '</b></span>' : '');
     const fds = (ini + d - 1) % 7 >= 5;
-    cel += '<div class="cal-d' + (k === h ? ' hj' : '') + (fds ? ' fds' : '') + (venc ? ' venc' : '') + (ps.length ? ' tem clic' : '') + (S.calDia === k ? ' sel' : '') + '"' + (ps.length ? ' data-dia="' + k + '" title="' + ps.length + ' prazo(s) em ' + fdata(k) + '"' : '') + '><span class="cal-n">' + d + '</span>' +
+    cel += '<div class="cal-d' + (k === h ? ' hj' : '') + (fds ? ' fds' : '') + (venc ? ' venc' : '') + (ps.length ? ' tem clic' : '') + (S.calDia === k ? ' sel' : '') + '"' + (ps.length ? ' data-dia="' + k + '" title="' + ps.length + ' prazo(s) em ' + fdata(k) + '"' : '') + '><span class="cal-n">' + d + '</span>' + memoD +
       ordT.filter((t) => c[t]).map((t) => '<span class="cal-t" title="' + esc(TRIB[t]) + '">' + logoT(t) + '<span class="cal-s">' + esc(TRIB_CURTO[t]) + '</span>' + (/[12]$/.test(t) ? '<span class="cal-gr">' + t.slice(-1) + 'º</span>' : '') + '<b>' + c[t] + '</b></span>').join('') + '</div>';
   }
   const fim = (ini + nDias) % 7; if (fim) for (let i = fim; i < 7; i++) cel += '<div class="cal-d vaz"></div>';
@@ -384,6 +386,7 @@ function calendarioPrazos(lista) {
 }
 async function copiarPrompt(p) { try { await navigator.clipboard.writeText(p.prompt_minutaia || ''); toast('Prompt copiado.'); } catch (e) { toast('Não foi possível copiar.', true); } }
 document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-cpp]'); if (!b) return; e.stopPropagation(); e.preventDefault(); const p = ((S.dados && S.dados.prazos) || []).find((x) => x.id === b.dataset.cpp); if (p) copiarPrompt(p); }, true);
+document.head.insertAdjacentHTML('beforeend', '<style>.cal-m{display:inline-flex;align-items:center;gap:3px;width:max-content;max-width:100%;font-size:11px;font-weight:700;padding:1px 6px;border-radius:7px;line-height:1.5}.cal-m svg.i{width:13px;height:13px}.cal-m.pend{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad)}.cal-m.env{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok)}@media(max-width:760px){.cal-m{padding:0 3px;font-size:10px}.cal-m .cal-ms{display:none}}</style>');
 document.head.insertAdjacentHTML('beforeend', '<style>.pr-cel{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:1.35;min-width:240px;max-width:380px}.pr-cp{margin-top:4px}.pr-li{font-size:12px;line-height:1.35;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.pr-det{white-space:pre-wrap;font-size:13px;line-height:1.45;margin-bottom:6px}</style>');
 const COLS = [
   { c: 'fim', t: 'Prazo', v: (p) => p.fim || '9999' },
