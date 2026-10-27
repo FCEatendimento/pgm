@@ -62,6 +62,7 @@ const fotoEu = (eu) => eu.foto || (['atendimento@fceadvogados.com.br', 'emerim@i
 const logoT = (k) => { const u = LOGO_T[String(k || '').replace(/[12]$/, '')]; return u ? '<img class="lg-t" src="' + u + '" alt="">' : ''; };
 const STATUS = { PENDENTE: 'A fazer', EM_ELABORACAO: 'Em elaboração', PROTOCOLADO: 'Protocolado', CIENCIA: 'Ciência dada', ARQUIVADO: 'Arquivado' };
 const MEMO = { NAO: 'Sem memorando', A_ENVIAR: 'A enviar', ENVIADO: 'Enviado – aguardando', RESPONDIDO: 'Respondido' };
+const ATEND = { NAO: 'Não se aplica', A_DESPACHAR: 'A despachar', DESPACHADO: 'Despachado' };
 const SECRETARIAS = ['Fazenda', 'Administração', 'Saúde', 'Educação', 'Obras e Serviços Urbanos', 'Desenvolvimento Urbano e Habitação', 'Meio Ambiente', 'Desenvolvimento Social', 'Segurança', 'Mobilidade Urbana', 'Cultura', 'Esporte e Lazer', 'Gabinete do Prefeito', 'PROCON', 'COMUSA', 'Previdência (IPASEM)'];
 const ABERTOS = ['PENDENTE', 'EM_ELABORACAO'];
 // Prazo antigo: o dia do vencimento já terminou (vai para a aba "Prazos antigos").
@@ -221,7 +222,7 @@ function badges() {
   const urg = prazos().filter((p) => aberto(p) && p.fim === h).length;
   const venc = prazos().filter((p) => aberto(p) && p.fim && p.fim < h).length;
   const tar = tarefas().filter((t) => t.status === 'ABERTA' && t.vencimento && t.vencimento <= h).length;
-  const mem = prazos().filter((p) => aberto(p) && p.memo_status === 'A_ENVIAR').length;
+  const mem = prazos().filter((p) => aberto(p) && (p.memo_status === 'A_ENVIAR' || p.atend_status === 'A_DESPACHAR')).length;
   const set = (k, n, r) => $$('a[data-r="' + k + '"] .bdg-slot').forEach((e) => { e.innerHTML = n ? '<span class="bdg' + (r ? ' r' : '') + '">' + n + '</span>' : ''; });
   const jv = ((S.dados && S.dados.jrf && S.dados.jrf.processos) || []).filter((p) => !['JULGADO', 'ARQUIVADO'].includes(p.status) && p.prazo_voto && p.prazo_voto <= addDias(h, 3)).length;
   set('prazos', urg, true); set('antigos', venc, true); set('cumprimentos', cumprimentos().filter((c) => c.situacao === 'A_EXECUTAR').length, false); set('memorandos', mem, false); set('junta', jv, true);
@@ -258,6 +259,7 @@ function itemPrazo(p) {
   if (!aberto(p)) tags.push('<span class="chip ok">' + esc(STATUS[p.status]) + '</span>');
   if (p.ed_cabivel) { const ne = dias(p.ed_prazo); tags.push('<span class="chip ' + (p.ed_prazo && aberto(p) ? (urg(ne) || 'ouro') : 'ouro') + '">ED' + (p.ed_prazo ? ' até ' + fdata(p.ed_prazo) : ' cabíveis') + '</span>'); }
   if (p.memo_status && p.memo_status !== 'NAO') tags.push('<span class="chip ' + (p.memo_status === 'RESPONDIDO' ? 'ok' : p.memo_status === 'A_ENVIAR' ? 'warn' : 'info') + '">Memo' + (p.memo_secretaria ? ' ' + esc(p.memo_secretaria) : '') + ' · ' + esc(MEMO[p.memo_status].split(' –')[0].toLowerCase()) + '</span>');
+  if (p.atend_status && p.atend_status !== 'NAO') tags.push('<span class="chip ' + (p.atend_status === 'DESPACHADO' ? 'ok' : 'bad') + '" title="' + esc(p.atend_protocolo || 'Protocolo administrativo') + '">Atendenet · ' + esc(ATEND[p.atend_status].toLowerCase()) + '</span>');
   return '<div class="item clic" data-p="' + esc(p.id) + '"><span class="dot ' + u + '"></span><div class="mid"><div class="t"><span class="num">' + esc(p.processo) + '</span>' + (p.parte ? '<span class="par"><span class="sep-p"> · </span>' + esc(p.parte) + '</span>' : '') + '</div>' +
     '<div class="d">' + esc(p.providencia || p.intimacao || p.classe || 'Sem providência definida') + '</div>' + (p.prompt_minutaia ? '<div class="pr-li"><b>Prompt MinutaIA:</b> ' + esc(p.prompt_minutaia) + '</div><button class="btn sm pr-cp" data-cpp="' + esc(p.id) + '">Copiar prompt</button>' : '') + '<div class="tags">' + tags.join('') + '</div></div>' +
     '<div class="dir"><span class="data">' + fdata(p.fim) + '</span>' + (p.fim && aberto(p) ? '<span class="chip ' + (u || '') + '">' + rel(n) + '</span>' : '') + '</div></div>';
@@ -286,7 +288,7 @@ VIEWS.inicio = function () {
   const atras = ab.filter((p) => p.fim && p.fim < h), hj = ab.filter((p) => p.fim === h);
   const sem7 = ab.filter((p) => p.fim && p.fim > h && p.fim <= addDias(h, 7));
   const ed = ab.filter((p) => p.ed_cabivel && (!p.ed_prazo || p.ed_prazo >= h));
-  const memA = ab.filter((p) => p.memo_status === 'A_ENVIAR'), memE = ab.filter((p) => p.memo_status === 'ENVIADO');
+  const memA = ab.filter((p) => p.memo_status === 'A_ENVIAR'), memE = ab.filter((p) => p.memo_status === 'ENVIADO'), atA = ab.filter((p) => p.atend_status === 'A_DESPACHAR');
     const nome = ((S.eu && S.eu.nome) || '').split(' ')[0];
   const hr = new Date().getHours();
   const kpi = (rot, val, sub, i, cls, go) => '<div class="card kpi ' + (cls || '') + '" data-go="' + go + '"><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div><div class="ico">' + ic(i, 's') + '</div></div>';
@@ -297,7 +299,7 @@ VIEWS.inicio = function () {
     kpi('Próximos 7 dias', sem7.length, 'até ' + fdata(addDias(h, 7)), 'semana', 'warn', '7dias') +
     kpi('Prazos abertos', ab.length, 'a fazer ou em elaboração', 'lista', '', '') +
     kpi('Embargos de declaração', ed.length, 'cabíveis e no prazo', 'ed', 'info', 'ed') +
-    kpi('Memorandos', memA.length + memE.length, memA.length + ' a enviar · ' + memE.length + ' aguardando', 'memo', '', 'memo') +
+    kpi('Memorandos', memA.length + memE.length, memA.length + ' a enviar · ' + memE.length + ' aguardando' + (atA.length ? ' · ' + atA.length + ' Atendenet' : ''), 'memo', '', 'memo') +
     '</div>' +
     '<div class="grid g2" style="margin-top:16px"><div class="card"><div class="cab"><h2>Próximos vencimentos</h2><div class="dir"><a class="btn fant sm" href="#/prazos">Ver todos</a></div></div><div class="lista" id="l1">' +
     (abAt.slice(0, 8).map(itemPrazo).join('') || vazio('Nenhum prazo aberto.')) + '</div></div>' +
@@ -321,10 +323,10 @@ function telaPrazos(ant) {
   if (ant) base.sort((a, b) => String(b.fim).localeCompare(String(a.fim)) || String(a.processo).localeCompare(String(b.processo)));
   const MARCAS = ant ? {
     semana: ['Últimos 7 dias', (p) => p.fim >= addDias(h, -7)], mes: ['Últimos 30 dias', (p) => p.fim >= addDias(h, -30)],
-    ed: ['Com ED', (p) => p.ed_cabivel], memo: ['Com memorando', (p) => p.memo_status && p.memo_status !== 'NAO']
+    ed: ['Com ED', (p) => p.ed_cabivel], memo: ['Com memorando', (p) => p.memo_status && p.memo_status !== 'NAO'], atend: ['Atendenet', (p) => p.atend_status && p.atend_status !== 'NAO']
   } : {
     hoje: ['Hoje', (p) => p.fim === h], '7dias': ['7 dias', (p) => p.fim && p.fim >= h && p.fim <= addDias(h, 7)],
-    ed: ['Com ED', (p) => p.ed_cabivel], memo: ['Com memorando', (p) => p.memo_status && p.memo_status !== 'NAO']
+    ed: ['Com ED', (p) => p.ed_cabivel], memo: ['Com memorando', (p) => p.memo_status && p.memo_status !== 'NAO'], atend: ['Atendenet', (p) => p.atend_status && p.atend_status !== 'NAO']
   };
   if (f.marca && !MARCAS[f.marca]) f.marca = '';
   const q = f.q.trim().toLowerCase();
@@ -373,9 +375,11 @@ function calendarioPrazos(lista) {
     const c = {}; ps.forEach((p) => { c[p.tribunal] = (c[p.tribunal] || 0) + 1; });
     const venc = k < h && ps.some(aberto);
     const mP = ps.filter((p) => p.memo_status === 'A_ENVIAR').length, mE = ps.filter((p) => p.memo_status === 'ENVIADO' || p.memo_status === 'RESPONDIDO').length;
+    const aP = ps.filter((p) => p.atend_status === 'A_DESPACHAR').length, aD = ps.filter((p) => p.atend_status === 'DESPACHADO').length;
+    const atD = (aP ? '<span class="cal-m pend" title="' + aP + ' protocolo(s) a despachar no Atendenet">' + ic('enviar') + '<span class="cal-ms">Atend.</span><b>' + aP + '</b></span>' : '') + (aD ? '<span class="cal-m env" title="' + aD + ' protocolo(s) despachado(s) no Atendenet">' + ic('enviar') + '<span class="cal-ms">Atend.</span><b>' + aD + '</b></span>' : '');
     const memoD = (mP ? '<span class="cal-m pend" title="' + mP + ' memorando(s) a enviar">' + ic('memo') + '<span class="cal-ms">Memo</span><b>' + mP + '</b></span>' : '') + (mE ? '<span class="cal-m env" title="' + mE + ' memorando(s) enviado(s)">' + ic('memo') + '<span class="cal-ms">Memo</span><b>' + mE + '</b></span>' : '');
     const fds = (ini + d - 1) % 7 >= 5;
-    cel += '<div class="cal-d' + (k === h ? ' hj' : '') + (fds ? ' fds' : '') + (venc ? ' venc' : '') + (ps.length ? ' tem clic' : '') + (S.calDia === k ? ' sel' : '') + '"' + (ps.length ? ' data-dia="' + k + '" title="' + ps.length + ' prazo(s) em ' + fdata(k) + '"' : '') + '><span class="cal-n">' + d + '</span>' + memoD +
+    cel += '<div class="cal-d' + (k === h ? ' hj' : '') + (fds ? ' fds' : '') + (venc ? ' venc' : '') + (ps.length ? ' tem clic' : '') + (S.calDia === k ? ' sel' : '') + '"' + (ps.length ? ' data-dia="' + k + '" title="' + ps.length + ' prazo(s) em ' + fdata(k) + '"' : '') + '><span class="cal-n">' + d + '</span>' + memoD + atD +
       ordT.filter((t) => c[t]).map((t) => '<span class="cal-t" title="' + esc(TRIB[t]) + '">' + logoT(t) + '<span class="cal-s">' + esc(TRIB_CURTO[t]) + '</span>' + (/[12]$/.test(t) ? '<span class="cal-gr">' + t.slice(-1) + 'º</span>' : '') + '<b>' + c[t] + '</b></span>').join('') + '</div>';
   }
   const fim = (ini + nDias) % 7; if (fim) for (let i = fim; i < 7; i++) cel += '<div class="cal-d vaz"></div>';
@@ -449,10 +453,17 @@ VIEWS.memorandos = function () {
       (l.map((p) => itemMemo(p)).join('') || vazio(txtVazio, 'memo')) + '</div></div>';
   };
   $('#conteudo').innerHTML = '<p class="mut pq" style="margin:14px 2px 0">Pedidos de informações e documentos às secretarias municipais, vinculados aos prazos abertos. O retorno deve chegar uma semana antes do prazo fatal.</p>' +
-    bloco('A enviar', 'A_ENVIAR', 'Nenhum memorando a enviar.') + bloco('Enviados – aguardando retorno', 'ENVIADO', 'Nenhum memorando aguardando retorno.') + bloco('Respondidos', 'RESPONDIDO', 'Nenhum memorando respondido em prazos abertos.');
+    bloco('A enviar', 'A_ENVIAR', 'Nenhum memorando a enviar.') + bloco('Enviados – aguardando retorno', 'ENVIADO', 'Nenhum memorando aguardando retorno.') + bloco('Respondidos', 'RESPONDIDO', 'Nenhum memorando respondido em prazos abertos.') + blocoAtend();
+  $$('[data-as]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); mudarAtend(b.dataset.id, b.dataset.as); }; });
   $$('[data-ms]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); mudarMemo(b.dataset.id, b.dataset.ms); }; });
   ligarListas($('#conteudo'));
 };
+function blocoAtend() {
+  const l = prazos().filter((p) => aberto(p) && p.atend_status && p.atend_status !== 'NAO').sort((a, b) => (a.atend_status === 'A_DESPACHAR' ? 0 : 1) - (b.atend_status === 'A_DESPACHAR' ? 0 : 1) || String(a.fim || '9').localeCompare(String(b.fim || '9')));
+  const n = l.filter((p) => p.atend_status === 'A_DESPACHAR').length;
+  return '<div class="sec-tit">Atendenet – despachar o protocolo administrativo <span class="bdg' + (n ? ' r' : '') + '">' + n + '</span></div><p class="mut pq" style="margin:0 2px 8px">Cumprimentos de sentença contra o Município em que a parte informou protocolo administrativo: não há memorando; despachar no sistema de protocolo municipal (Atendenet).</p><div class="card"><div class="lista">' +
+    (l.map((p) => '<div class="item clic" data-p="' + esc(p.id) + '"><span class="dot ' + (p.atend_status === 'DESPACHADO' ? 'ok' : 'bad') + '"></span><div class="mid"><div class="t">' + esc(p.processo) + (p.parte ? ' · ' + esc(p.parte) : '') + '</div><div class="d">' + esc(p.atend_protocolo || 'Protocolo administrativo não informado') + '</div><div class="tags"><span class="chip nav">' + logoT(p.tribunal) + esc(TRIB_CURTO[p.tribunal]) + '</span><span class="chip ' + (p.atend_status === 'DESPACHADO' ? 'ok' : 'bad') + '">' + esc(ATEND[p.atend_status]) + '</span></div></div><div class="dir"><span class="pp mut">prazo</span><span class="data">' + fdata(p.fim) + '</span>' + (p.atend_status === 'A_DESPACHAR' ? '<button class="btn sm" data-as="DESPACHADO" data-id="' + esc(p.id) + '">Marcar despachado</button>' : '<button class="btn sm fant" data-as="A_DESPACHAR" data-id="' + esc(p.id) + '">Desfazer</button>') + '</div></div>').join('') || vazio('Nenhum protocolo a despachar no Atendenet.', 'enviar')) + '</div></div>';
+}
 function itemMemo(p) {
   const ret = p.memo_retorno || (p.fim ? addDias(p.fim, -7) : null), n = dias(ret);
   const prox = p.memo_status === 'A_ENVIAR' ? ['ENVIADO', 'Marcar enviado'] : p.memo_status === 'ENVIADO' ? ['RESPONDIDO', 'Marcar respondido'] : null;
@@ -998,6 +1009,7 @@ function verPrazo(id) {
     (p.prompt_minutaia ? L('Prompt MinutaIA', '<div class="pr-det">' + esc(p.prompt_minutaia) + '</div><button class="btn sm" data-cpd>Copiar prompt</button>') : '') +
     L('Embargos de declaração', p.ed_cabivel ? 'Cabíveis' + (p.ed_prazo ? ' – prazo até <b>' + fdata(p.ed_prazo, true) + '</b>' : '') + (p.ed_obs ? '<br><span class="mut">' + esc(p.ed_obs) + '</span>' : '') : 'Não cabíveis') +
     L('Memorando', p.memo_status && p.memo_status !== 'NAO' ? esc(p.memo_secretaria || 'Secretaria não informada') + ' – ' + esc(MEMO[p.memo_status]) + (p.memo_retorno ? '<br><span class="mut">retorno até ' + fdata(p.memo_retorno, true) + '</span>' : '') : 'Não é necessário') +
+    (p.atend_status && p.atend_status !== 'NAO' ? L('Atendenet', '<span class="chip ' + (p.atend_status === 'DESPACHADO' ? 'ok' : 'bad') + '">' + esc(ATEND[p.atend_status]) + '</span>' + (p.atend_protocolo ? '<br><span class="mut">' + esc(p.atend_protocolo) + '</span>' : '') + '<br><button class="btn sm" data-asv="' + (p.atend_status === 'A_DESPACHAR' ? 'DESPACHADO">Marcar despachado' : 'A_DESPACHAR">Voltar para a despachar') + '</button>') : '') +
     L('Teor', esc(p.teor)) + L('Observações', esc(p.observacoes)) + '</dl>' +
     '<div class="acoesrap">' + (aberto(p)
       ? (p.status === 'PENDENTE' ? '<button class="btn sm" data-st="EM_ELABORACAO">Em elaboração</button>' : '<button class="btn sm" data-st="PENDENTE">Voltar para "a fazer"</button>') + '<button class="btn sm" data-st="PROTOCOLADO">' + ic('check', 's') + 'Protocolado</button><button class="btn sm" data-st="CIENCIA">Ciência dada</button><button class="btn sm fant" data-st="ARQUIVADO">Arquivar</button>'
@@ -1011,6 +1023,7 @@ function verPrazo(id) {
   ] });
   const v = $$('.veu').pop();
   const cpd = $('[data-cpd]', v); if (cpd) cpd.onclick = () => copiarPrompt(p);
+  const asv = $('[data-asv]', v); if (asv) asv.onclick = async () => { asv.disabled = true; await mudarAtend(p.id, asv.dataset.asv); v.remove(); };
   $$('[data-st]', v).forEach((b) => { b.onclick = async () => { b.disabled = true; try { const r = await api('prazo_status', { id: p.id, status: b.dataset.st }); substituir(S.dados.prazos, r); redesenhar(); v.remove(); toast('Situação: ' + STATUS[r.status] + '.'); } catch (e) { b.disabled = false; toast(e.message, true); } }; });
   $('[data-nt]', v).onclick = () => { v.remove(); editarTarefa({ processo: p.processo, prazo_id: p.id, vencimento: p.fim ? addDias(p.fim, -2) : '' }); };
   $('[data-om]', v).onclick = () => { v.remove(); editarOrdem({ tipo: 'MEMORANDO', processo: p.processo, prazo_id: p.id, dados: { secretaria: p.memo_secretaria || 'Fazenda', anexar_decisao: true } }); };
@@ -1018,7 +1031,7 @@ function verPrazo(id) {
   pr.then((r) => { if (r === 'editar') editarPrazo(p); });
 }
 function editarPrazo(p) {
-  p = p || { tribunal: 'TJRS1', status: 'PENDENTE', memo_status: 'NAO' };
+  p = p || { tribunal: 'TJRS1', status: 'PENDENTE', memo_status: 'NAO', atend_status: 'NAO' };
   const o = (v, sel) => '<option value="' + esc(v[0]) + '"' + (v[0] === sel ? ' selected' : '') + '>' + esc(v[1]) + '</option>';
   const inp = (n, rot, tipo, cls, extra) => '<label class="' + (cls || '') + '">' + rot + '<input class="inp" name="' + n + '" type="' + (tipo || 'text') + '" value="' + esc(p[n] || '') + '"' + (extra || '') + '></label>';
   const corpo = '<form class="form" id="fp" autocomplete="off">' +
@@ -1036,6 +1049,9 @@ function editarPrazo(p) {
     '<label>Situação<select class="sel" name="memo_status">' + Object.entries(MEMO).map((e) => o(e, p.memo_status || 'NAO')).join('') + '</select></label>' +
     '<label>Secretaria<input class="inp" name="memo_secretaria" list="secs" value="' + esc(p.memo_secretaria || '') + '"><datalist id="secs">' + SECRETARIAS.map((s) => '<option value="' + esc(s) + '">').join('') + '</datalist></label>' +
     inp('memo_retorno', 'Retorno até (uma semana antes do prazo)', 'date') + '<span></span>' +
+    '<div class="grupo">Protocolo administrativo – Atendenet (cumprimento de sentença)</div>' +
+    '<label>Situação<select class="sel" name="atend_status">' + Object.entries(ATEND).map((e) => o(e, p.atend_status || 'NAO')).join('') + '</select></label>' +
+    inp('atend_protocolo', 'Nº do protocolo / data informados pela parte') +
     '<div class="grupo">Anotações</div>' +
     '<label class="full">Teor da decisão / intimação<textarea class="inp" name="teor">' + esc(p.teor || '') + '</textarea></label>' +
     '<label class="full">Observações<textarea class="inp" name="observacoes" style="min-height:60px">' + esc(p.observacoes || '') + '</textarea></label></form>';
@@ -1050,6 +1066,10 @@ function editarPrazo(p) {
   const v = $$('.veu').pop(), f = $('#fp', v);
   f.fim.onchange = () => { if (f.memo_status.value !== 'NAO' && !f.memo_retorno.value && f.fim.value) f.memo_retorno.value = addDias(f.fim.value, -7); };
   f.memo_status.onchange = f.fim.onchange;
+}
+async function mudarAtend(id, as) {
+  try { const r = await api('prazo_atend', { id, atend_status: as }); substituir(S.dados.prazos, r); redesenhar(); toast('Atendenet: ' + ATEND[as].toLowerCase() + '.'); }
+  catch (e) { toast(e.message, true); }
 }
 async function mudarMemo(id, ms) {
   try { const r = await api('prazo_memo', { id, memo_status: ms }); substituir(S.dados.prazos, r); redesenhar(); toast('Memorando: ' + MEMO[ms].toLowerCase() + '.'); }
