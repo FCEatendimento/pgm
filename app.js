@@ -899,14 +899,89 @@ function htmlCghs(d) {
     meses.map((m) => '<div class="sec-tit"><a href="' + esc(m.link) + '" target="_blank" rel="noopener" style="color:inherit">' + esc(m.nome) + '</a> <span class="bdg">' + (m.arquivos || []).length + '</span></div><div class="card"><div class="lista">' + ((m.arquivos || []).map(arq).join('') || vazio('Nenhum arquivo neste mês ainda.', 'doc')) + '</div></div>').join('') +
     ((d.soltos || []).length ? '<div class="sec-tit">Outros arquivos da pasta <span class="bdg">' + d.soltos.length + '</span></div><div class="card"><div class="lista">' + d.soltos.map(arq).join('') + '</div></div>' : '');
 }
+const MES_C = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const mesNome = (m) => { const [a, n] = String(m || '').split('-'); return n ? MES_C[+n - 1] + '/' + a : m; };
+const pct = (a, b) => (a === null || b === null || !b) ? null : (a - b) / b * 100;
+const fpct = (v) => v === null ? '<span class="mut">–</span>' : '<span class="' + (v > 0 ? 'c-ok' : v < 0 ? 'c-bad' : 'mut') + '">' + (v > 0 ? '▲ ' : v < 0 ? '▼ ' : '') + Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + '%</span>';
+function htmlCghsMensal(l) {
+  l = (l || []).slice().sort((a, b) => String(a.mes).localeCompare(String(b.mes)));
+  const num = (v) => v === null || v === undefined || v === '' ? null : Number(v);
+  const com = l.filter((m) => num(m.total) !== null);
+  const max = Math.max(1, ...com.map((m) => num(m.total)));
+  let antT = null, antC = null;
+  const linhas = l.map((m) => {
+    const t = num(m.total), c = num(m.cota_cheia);
+    const vT = t === null ? null : pct(t, antT), vC = c === null ? null : pct(c, antC);
+    if (t !== null) antT = t; if (c !== null) antC = c;
+    return '<tr class="clic" data-cm="' + esc(m.mes) + '"><td class="nw"><b>' + esc(mesNome(m.mes)) + '</b>' + (m.competencia ? '<div class="pp mut">comp. ' + esc(m.competencia) + '</div>' : '') + '</td>' +
+      '<td class="nw num-r">' + (t === null ? '<span class="mut">sem dados</span>' : '<b>' + fmoeda(t) + '</b>') + '<div class="cg-bar"><span style="width:' + (t === null ? 0 : Math.max(2, t / max * 100)).toFixed(1) + '%"></span></div></td>' +
+      '<td class="nw num-r">' + fpct(vT) + '</td>' +
+      '<td class="nw num-r">' + (c === null ? '<span class="mut">–</span>' : fmoeda(c)) + '</td>' +
+      '<td class="nw num-r">' + fpct(vC) + '</td>' +
+      '<td class="pp">' + (m.fonte_link ? '<a href="' + esc(m.fonte_link) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + esc(m.fonte || 'arquivo') + '</a>' : esc(m.fonte || '')) + (m.obs ? '<div class="mut">' + esc(m.obs) + '</div>' : '') + '</td></tr>';
+  }).join('');
+  const soma = com.reduce((x, m) => x + num(m.total), 0), cotas = l.filter((m) => num(m.cota_cheia) !== null);
+  const somaC = cotas.reduce((x, m) => x + num(m.cota_cheia), 0);
+  const ult = com[com.length - 1], pen = com[com.length - 2];
+  const kpi = (rot, val, sub) => '<div class="card kpi"><div class="rot">' + rot + '</div><div class="val" style="font-size:20px">' + val + '</div><div class="sub">' + sub + '</div></div>';
+  return '<div class="kpis cg-kpis" style="margin-top:14px">' +
+    kpi('Último mês', ult ? fmoeda(ult.total) : '–', ult ? mesNome(ult.mes) + (pen ? ' · ' + fpct(pct(num(ult.total), num(pen.total))).replace(/<[^>]+>/g, '') + ' sobre ' + mesNome(pen.mes) : '') : '') +
+    kpi('Cota cheia do último mês', ult && ult.cota_cheia ? fmoeda(ult.cota_cheia) : '–', ult ? mesNome(ult.mes) : '') +
+    kpi('Média mensal', com.length ? fmoeda(soma / com.length) : '–', com.length + ' mês(es) com dados') +
+    kpi('Média da cota cheia', cotas.length ? fmoeda(somaC / cotas.length) : '–', 'acumulado ' + fmoeda(somaC)) +
+    kpi('Acumulado no ano', fmoeda(soma), 'total distribuído') +
+    kpi('Maior mês', com.length ? fmoeda(Math.max(...com.map((m) => num(m.total)))) : '–', com.length ? mesNome(com.reduce((a, b) => num(b.total) > num(a.total) ? b : a).mes) : '') + '</div>' +
+    '<div class="sec-tit">Comparativo mensal <button class="btn sm pri" data-cmn style="margin-left:auto">+ Lançar mês</button></div>' +
+    '<div class="card tab-wrap" style="max-height:none"><table class="tab cg-tab"><thead><tr><th>Mês (pagamento)</th><th class="num-r">Total de honorários</th><th class="num-r">Variação</th><th class="num-r">Cota cheia</th><th class="num-r">Variação</th><th>Fonte</th></tr></thead><tbody>' +
+    (linhas || '<tr><td colspan="6">' + vazio('Nenhum mês lançado ainda.', 'cghs') + '</td></tr>') + '</tbody></table></div>' +
+    '<p class="pp mut" style="margin:10px 2px">Valores extraídos dos arquivos de rateio da pasta do CGHS (total distribuído e cota cheia = valor de quem recebe cota 1). A variação compara com o mês anterior que tem dados. Clique num mês para corrigir ou completar.</p>';
+}
+function editarCghsMes(m) {
+  m = m || {};
+  const corpo = '<form class="form" id="fcm" autocomplete="off">' +
+    '<label>Mês do pagamento<input class="inp" type="month" name="mes" value="' + esc(m.mes || '') + '"' + (m.mes ? ' readonly' : '') + ' required></label>' +
+    '<label>Competência<input class="inp" name="competencia" value="' + esc(m.competencia || '') + '" placeholder="ex.: Set/2026"></label>' +
+    '<label>Total de honorários (R$)<input class="inp" name="total" inputmode="decimal" value="' + esc(m.total === null || m.total === undefined ? '' : Number(m.total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })) + '"></label>' +
+    '<label>Cota cheia (R$)<input class="inp" name="cota_cheia" inputmode="decimal" value="' + esc(m.cota_cheia === null || m.cota_cheia === undefined ? '' : Number(m.cota_cheia).toLocaleString('pt-BR', { minimumFractionDigits: 2 })) + '"></label>' +
+    '<label>Arquivo de origem<input class="inp" name="fonte" value="' + esc(m.fonte || '') + '"></label>' +
+    '<label>Link do arquivo<input class="inp" name="fonte_link" value="' + esc(m.fonte_link || '') + '"></label>' +
+    '<label class="full">Observações<textarea class="inp" name="obs" style="min-height:60px">' + esc(m.obs || '') + '</textarea></label></form>';
+  const bts = [{ txt: 'Cancelar', valor: null }, { txt: 'Salvar', cls: 'pri', ic: 'check', acao: async (v) => {
+    const d = Object.fromEntries(new FormData($('#fcm', v)).entries());
+    if (!/^\d{4}-\d{2}$/.test(d.mes || '')) { toast('Informe o mês.', true); return false; }
+    const r = await api('cghs_mensal_salvar', { mes: d });
+    S.cghsMensal = (S.cghsMensal || []).filter((x) => x.mes !== r.mes).concat([r]); VIEWS.cghs(); toast('Mês ' + mesNome(r.mes) + ' salvo.');
+  } }];
+  if (m.mes) bts.unshift({ txt: 'Excluir', ic: 'lixo', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Excluir mês', 'Excluir o lançamento de ' + mesNome(m.mes) + '?', 'Excluir', true))) return false; await api('cghs_mensal_excluir', { mes: m.mes }); S.cghsMensal = (S.cghsMensal || []).filter((x) => x.mes !== m.mes); VIEWS.cghs(); toast('Mês excluído.'); } });
+  modal({ titulo: m.mes ? 'Honorários de ' + mesNome(m.mes) : 'Lançar mês', corpo, botoes: bts });
+}
+document.head.insertAdjacentHTML('beforeend', '<style>.num-r{text-align:right}.cg-tab td,.cg-tab th{vertical-align:top}.cg-bar{height:5px;background:var(--surface-2);border-radius:9px;margin-top:5px;min-width:120px;overflow:hidden}.cg-bar span{display:block;height:100%;background:var(--gold);border-radius:9px}.c-ok{color:var(--ok);font-weight:700}.c-bad{color:var(--bad);font-weight:700}.cg-seg{margin:14px 0 0}</style>');
 VIEWS.cghs = function () {
   titulo('CGHS');
-  if (S.cghs) $('#conteudo').innerHTML = htmlCghs(S.cghs);
-  else $('#conteudo').innerHTML = '<div class="carregando"><div class="spin"></div></div>';
-  if (VIEWS.cghs.lendo) return;
+  if (S.cghsAba === undefined) S.cghsAba = LS.get('cghsAba', 'mensal');
+  const aba = S.cghsAba === 'arquivos' ? 'arquivos' : 'mensal';
+  const seg = '<div class="seg cg-seg" role="group" aria-label="Seção">' + [['mensal', 'Comparativo mensal', 'tabela'], ['arquivos', 'Arquivos do Drive', 'doc']].map((o) => '<button data-cga="' + o[0] + '" class="' + (aba === o[0] ? 'on' : '') + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div>';
+  const ligar = () => {
+    $$('[data-cga]').forEach((b) => { b.onclick = () => { S.cghsAba = b.dataset.cga; LS.set('cghsAba', S.cghsAba); VIEWS.cghs(); }; });
+    $$('[data-cm]').forEach((tr) => { tr.onclick = () => editarCghsMes((S.cghsMensal || []).find((x) => x.mes === tr.dataset.cm)); });
+    const n = $('[data-cmn]'); if (n) n.onclick = () => editarCghsMes();
+  };
+  const carregando = '<div class="carregando"><div class="spin"></div></div>';
+  if (aba === 'mensal') {
+    $('#conteudo').innerHTML = seg + (S.cghsMensal ? htmlCghsMensal(S.cghsMensal) : carregando); ligar();
+    if (!S.cghsMensal && !VIEWS.cghs.lendoM) {
+      VIEWS.cghs.lendoM = true;
+      api('cghs_mensal').then((d) => { S.cghsMensal = d || []; if (location.hash.startsWith('#/cghs')) VIEWS.cghs(); })
+        .catch((e) => { if (location.hash.startsWith('#/cghs')) { $('#conteudo').innerHTML = seg + '<div class="card" style="margin-top:14px">' + vazio(e.message || 'Erro ao ler o comparativo.', 'alerta') + '</div>'; ligar(); } })
+        .finally(() => { VIEWS.cghs.lendoM = false; });
+    }
+    return;
+  }
+  $('#conteudo').innerHTML = seg + (S.cghs ? htmlCghs(S.cghs) : carregando); ligar();
+  if (VIEWS.cghs.lendo || S.cghs) return;
   VIEWS.cghs.lendo = true;
-  apiCghs().then((d) => { S.cghs = d; if (location.hash.startsWith('#/cghs')) $('#conteudo').innerHTML = htmlCghs(d); })
-    .catch((e) => { if (location.hash.startsWith('#/cghs') && !S.cghs) $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px">' + vazio(e.message || 'Erro ao ler a pasta.', 'alerta') + '<div style="padding:0 16px 16px"><a class="btn sm" href="' + PASTA_CGHS + '" target="_blank" rel="noopener">' + ic('externo', 's') + '<span>Abrir pasta no Drive</span></a></div></div>'; })
+  apiCghs().then((d) => { S.cghs = d; if (location.hash.startsWith('#/cghs') && S.cghsAba === 'arquivos') { $('#conteudo').innerHTML = seg + htmlCghs(d); ligar(); } })
+    .catch((e) => { if (location.hash.startsWith('#/cghs') && !S.cghs) { $('#conteudo').innerHTML = seg + '<div class="card" style="margin-top:14px">' + vazio(e.message || 'Erro ao ler a pasta.', 'alerta') + '<div style="padding:0 16px 16px"><a class="btn sm" href="' + PASTA_CGHS + '" target="_blank" rel="noopener">' + ic('externo', 's') + '<span>Abrir pasta no Drive</span></a></div></div>'; ligar(); } })
     .finally(() => { VIEWS.cghs.lendo = false; });
 };
 VIEWS.ordens = function () {
