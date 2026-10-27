@@ -125,7 +125,7 @@ function addDias(s, n) { const d = dt(s); d.setUTCDate(d.getUTCDate() + n); retu
 // ---------- login ----------
 function telaLogin(erro) {
   document.title = 'Entrar · PGM';
-  $('#app').innerHTML = '<div class="login"><div class="caixa"><div class="logo"><img src="brasao.png" alt="Brasão de Novo Hamburgo"></div><h1>Painel Procurador</h1><p>Procuradoria-Geral do Município de Novo Hamburgo</p><div class="gbtn" id="gbtn"><div class="spin"></div></div>' +
+  $('#app').innerHTML = '<div class="login"><div class="caixa"><div class="logo"><img src="brasao.webp" alt="Brasão de Novo Hamburgo"></div><h1>Painel Procurador</h1><p>Procuradoria-Geral do Município de Novo Hamburgo</p><div class="gbtn" id="gbtn"><div class="spin"></div></div>' +
     (erro ? '<div class="erro">' + esc(erro) + '</div>' : '') + '<div class="obs">Acesso restrito. Entre com a conta Google autorizada.</div></div></div>';
   const iniciar = () => {
     if (!window.google || !google.accounts || !google.accounts.id) return setTimeout(iniciar, 200);
@@ -198,7 +198,7 @@ function iniciarApp() {
   const eu = S.eu || {}, mb = MEMBRO();
   const ROT = mb ? [{ k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' }] : ROTAS;
   const av = fotoEu(eu) ? '<img src="' + esc(fotoEu(eu)) + '" alt="" referrerpolicy="no-referrer">' : esc((eu.nome || '?').slice(0, 1));
-  $('#app').innerHTML = '<aside class="side"><div class="marca"><div class="logo"><img src="brasao.png" alt="Brasão de Novo Hamburgo"></div><div><b>Painel Procurador</b><span>PGM · Novo Hamburgo</span></div></div>' +
+  $('#app').innerHTML = '<aside class="side"><div class="marca"><div class="logo"><img src="brasao.webp" alt="Brasão de Novo Hamburgo"></div><div><b>Painel Procurador</b><span>PGM · Novo Hamburgo</span></div></div>' +
     '<nav class="nav">' + ROT.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + r.t + '</span><span class="bdg-slot"></span></a>').join('') + '</nav>' +
     (mb ? '' : '<div class="nav-tit">Acesso rápido</div><nav class="nav">' + LINKS.map((l) => '<a href="' + l.url + '" target="_blank" rel="noopener" title="' + esc(l.d) + '">' + ic(l.ic) + '<span>' + esc(l.t) + '</span>' + ic('externo', 's ext') + '</a>').join('') + '</nav>') +
     '<div class="rodape"><div class="av">' + av + '</div><div style="min-width:0"><div class="n">' + esc(eu.nome || '') + '</div><div class="e">' + esc(eu.email || '') + '</div></div><button title="Sair" id="bsair">' + ic('sair') + '</button></div></aside>' +
