@@ -338,12 +338,27 @@ textarea.ata{width:100%;min-height:340px;font:14.5px/1.6 Georgia,"Times New Roma
 .dir.mem .inp{width:240px}
 .hist{margin-top:14px}
 @media (max-width:760px){.dir.mem{flex-direction:column;align-items:stretch}.dir.mem .inp{width:100%}.votos{grid-template-columns:1fr}}
+/* Layout couro + costura azul (27/10/2026) */
+:root{--costura:#3B8FE6;--costura-2:#1f5fae;--couro:#262626 url(textura.webp) 0 0/320px repeat}
+.side{background:var(--couro);box-shadow:inset -1px 0 0 rgba(0,0,0,.55),4px 0 18px rgba(0,0,0,.18)}
+.side::after{content:"";position:absolute;top:0;bottom:0;right:8px;width:10px;pointer-events:none;background:repeating-linear-gradient(to bottom,var(--costura) 0 6px,var(--costura-2) 6px 8px,transparent 8px 12px) left top/2px 100% no-repeat,repeating-linear-gradient(to bottom,var(--costura) 0 6px,var(--costura-2) 6px 8px,transparent 8px 12px) right top/2px 100% no-repeat;filter:drop-shadow(0 1px 0 rgba(0,0,0,.7))}
+.side .rodape{border-top:0;position:relative}
+.side .rodape::before{content:"";position:absolute;left:4px;right:4px;top:-1px;height:2px;background:repeating-linear-gradient(90deg,var(--costura) 0 6px,var(--costura-2) 6px 8px,transparent 8px 12px);filter:drop-shadow(0 1px 0 rgba(0,0,0,.7))}
+.nav a.on{background:rgba(59,143,230,.16)}
+.nav a.on::before{background:var(--costura)}
+.marca .logo{width:46px;height:62px}
+.login{background:var(--couro)!important;position:relative;overflow:hidden}
+.login::before,.login::after{content:"";position:absolute;right:-8%;width:62%;height:2px;transform:rotate(-31deg);transform-origin:right center;pointer-events:none;background:repeating-linear-gradient(90deg,var(--costura) 0 9px,var(--costura-2) 9px 11px,transparent 11px 16px);filter:drop-shadow(0 1px 0 rgba(0,0,0,.7))}
+.login::before{bottom:26%}.login::after{bottom:calc(26% - 20px)}
+.login .caixa{position:relative;z-index:1;background:rgba(20,20,20,.55);border-color:rgba(59,143,230,.35)}
+.login .logo{width:110px;height:150px}
+@media (max-width:900px){.topo{background:var(--couro);color:#fff;box-shadow:inset 0 -6px 0 -4px transparent}.topo::after{content:"";position:absolute;left:0;right:0;bottom:5px;height:2px;background:repeating-linear-gradient(90deg,var(--costura) 0 6px,var(--costura-2) 6px 8px,transparent 8px 12px);filter:drop-shadow(0 1px 0 rgba(0,0,0,.7))}.topo .btn.fant{color:#DDE3EC}.tabbar a.on{color:var(--costura)}}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="colegiado.js"></script>
-<script src="app.js?v=20261023a"></script>
+<script src="app.js?v=20261027a"></script>
 </body>
 </html>
