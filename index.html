@@ -354,12 +354,42 @@ textarea.ata{width:100%;min-height:340px;font:14.5px/1.6 Georgia,"Times New Roma
 .login .logo{width:110px;height:150px}
 @media (max-width:900px){.topo{background:var(--couro);color:#fff;box-shadow:inset 0 -6px 0 -4px transparent}.topo::after{content:"";position:absolute;left:0;right:0;bottom:5px;height:2px;background:repeating-linear-gradient(90deg,var(--costura) 0 6px,var(--costura-2) 6px 8px,transparent 8px 12px);filter:drop-shadow(0 1px 0 rgba(0,0,0,.7))}.topo .btn.fant{color:#DDE3EC}.tabbar a.on{color:var(--costura)}}
 :root{--bg:#ECEEF1;--surface-2:#F5F6F8}/* fundo cinza claro no lugar do bege (27/10/2026) */
+/* Efeito 3D (27/10/2026) */
+:root{--brilho:rgba(255,255,255,.75);--brilho-b:rgba(255,255,255,.95);--sh:inset 0 1px 0 var(--brilho-b),0 1px 2px rgba(16,24,40,.06),0 4px 10px -2px rgba(16,24,40,.10),0 14px 26px -10px rgba(16,24,40,.16);--sh-lg:0 2px 4px rgba(16,24,40,.08),0 28px 56px -14px rgba(16,24,40,.32)}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){--brilho:rgba(255,255,255,.035);--brilho-b:rgba(255,255,255,.07)}}
+:root[data-tema="escuro"]{--brilho:rgba(255,255,255,.035);--brilho-b:rgba(255,255,255,.07)}
+.card{background-image:linear-gradient(180deg,var(--brilho),transparent 45%);transition:transform .18s ease,box-shadow .18s ease}
+.kpi:hover{transform:translateY(-3px);box-shadow:inset 0 1px 0 var(--brilho-b),0 2px 4px rgba(16,24,40,.08),0 18px 32px -12px rgba(16,24,40,.28)}
+.kpi .ico{box-shadow:inset 0 1px 0 var(--brilho-b),0 2px 4px rgba(16,24,40,.12)}
+.btn{box-shadow:inset 0 1px 0 var(--brilho-b),0 1px 0 rgba(16,24,40,.08),0 2px 4px -1px rgba(16,24,40,.12);transition:transform .08s ease,box-shadow .12s ease}
+.btn:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(16,24,40,.18)}
+.btn.pri{background-image:linear-gradient(180deg,rgba(255,255,255,.22),rgba(0,0,0,.08));box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 0 #96690f,0 6px 12px -4px rgba(201,144,28,.5)}
+.btn.pri:active{transform:translateY(2px);box-shadow:inset 0 2px 4px rgba(0,0,0,.25),0 0 0 #96690f}
+.btn.esc{background-image:linear-gradient(180deg,rgba(255,255,255,.12),rgba(0,0,0,.12));box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 2px 0 #050b14,0 6px 12px -4px rgba(14,26,43,.45)}
+.btn.fant,.btn.fant:active{box-shadow:none}
+.filtros{padding:2px 2px 8px}
+.filtros button{box-shadow:inset 0 1px 0 var(--brilho-b),0 1px 2px rgba(16,24,40,.10);transition:transform .08s ease}
+.filtros button:active{transform:translateY(1px)}
+.filtros button.on{box-shadow:inset 0 2px 5px rgba(0,0,0,.35)}
+.chip,.bdg{box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 1px rgba(0,0,0,.08)}
+.modal{background-image:linear-gradient(180deg,var(--brilho),transparent 30%)}
+.marca b{text-shadow:0 1px 0 rgba(0,0,0,.85),0 -1px 0 rgba(255,255,255,.05)}
+.marca span,.nav a,.side .rodape .n,.side .rodape .e{text-shadow:0 1px 1px rgba(0,0,0,.7)}
+.nav a:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 4px rgba(0,0,0,.25)}
+.nav a.on{box-shadow:inset 0 2px 5px rgba(0,0,0,.55),inset 0 -1px 0 rgba(255,255,255,.07)}
+.side{box-shadow:inset -1px 0 0 rgba(0,0,0,.55),inset 1px 1px 0 rgba(255,255,255,.04),6px 0 22px rgba(0,0,0,.28)}
+.marca .logo img,.login .logo img{filter:drop-shadow(0 3px 3px rgba(0,0,0,.55)) drop-shadow(0 8px 14px rgba(0,0,0,.35))}
+.login .caixa{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 2px 0 rgba(0,0,0,.4),0 34px 70px -12px rgba(0,0,0,.75)}
+.login h1{text-shadow:0 2px 0 rgba(0,0,0,.6)}
+.topo{box-shadow:0 8px 16px -14px rgba(16,24,40,.35)}
+@media (max-width:900px){.tabbar{box-shadow:0 -8px 20px -12px rgba(16,24,40,.3)}}
+@media (prefers-reduced-motion:reduce){.card,.btn,.filtros button{transition:none}.kpi:hover{transform:none}}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="colegiado.js"></script>
-<script src="app.js?v=20261027b"></script>
+<script src="app.js?v=20261027c"></script>
 </body>
 </html>
