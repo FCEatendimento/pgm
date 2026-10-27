@@ -314,6 +314,20 @@ VIEWS.inicio = function () {
 };
 VIEWS.prazos = function () { telaPrazos(false); };
 VIEWS.antigos = function () { telaPrazos(true); };
+const NATUREZAS = [
+  [/cumprimento.*fazenda|contra a fazenda/, 'Cumprimento de sentença contra a Fazenda'], [/cumprimento/, 'Cumprimento de sentença'],
+  [/embargos (a|de) execucao|embargos do devedor/, 'Embargos à execução'], [/embargos de terceiro/, 'Embargos de terceiro'],
+  [/execucao fiscal/, 'Execução fiscal'], [/execucao/, 'Execução de título'], [/mandado de seguranca/, 'Mandado de segurança'],
+  [/jefp|juizado especial|recurso inominado|uniformizacao/, 'Juizado Especial da Fazenda Pública'], [/procedimento comum|ordinaria/, 'Procedimento comum'],
+  [/apelacao/, 'Apelação'], [/agravo/, 'Agravo'], [/especial|extraordinario/, 'Recurso especial / extraordinário'], [/rescisoria/, 'Ação rescisória'],
+  [/carta de ordem|carta precatoria/, 'Carta de ordem / precatória'], [/precatorio/, 'Precatório'], [/reclamacao/, 'Reclamação'], [/restauracao/, 'Restauração de autos']
+];
+function natureza(p) {
+  const c = String(p.classe || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (!c) return 'Não informada';
+  const r = NATUREZAS.find((x) => x[0].test(c)); if (r) return r[1];
+  const t = String(p.classe).trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1);
+}
 function telaPrazos(ant) {
   titulo(ant ? 'Prazos antigos' : 'Prazos');
   const h = hoje(), f = ant ? S.fa : S.f, chF = ant ? 'filtrosA' : 'filtros', rr = () => (ant ? VIEWS.antigos() : VIEWS.prazos());
@@ -330,7 +344,9 @@ function telaPrazos(ant) {
   };
   if (f.marca && !MARCAS[f.marca]) f.marca = '';
   const q = f.q.trim().toLowerCase();
-  const lista = base.filter((p) => (!f.trib || p.tribunal === f.trib) && (!f.marca || !MARCAS[f.marca] || MARCAS[f.marca][1](p)) &&
+  const nats = {}; base.forEach((p) => { const n = natureza(p); nats[n] = (nats[n] || 0) + 1; });
+  if (f.nat && !nats[f.nat]) nats[f.nat] = 0;
+  const lista = base.filter((p) => (!f.trib || p.tribunal === f.trib) && (!f.nat || natureza(p) === f.nat) && (!f.marca || !MARCAS[f.marca] || MARCAS[f.marca][1](p)) &&
     (!q || [p.processo, p.parte, p.classe, p.providencia, p.intimacao, p.orgao, p.memo_secretaria, p.observacoes].join(' ').toLowerCase().includes(q)));
   const cnt = (fn) => base.filter(fn).length;
   const bt = (grp, val, txt, n) => '<button data-' + grp + '="' + val + '" class="' + (f[grp] === val ? 'on' : '') + '">' + txt + (n !== undefined ? '<span class="n">' + n + '</span>' : '') + '</button>';
@@ -340,7 +356,8 @@ function telaPrazos(ant) {
     '<div class="seg" role="group" aria-label="Formato">' + [['lista', 'Lista', 'lista'], ['tabela', 'Tabela', 'tabela'], ['calendario', 'Calendário', 'hoje']].map((o) => '<button data-vis="' + o[0] + '" class="' + (vis === o[0] ? 'on' : '') + '" title="Ver em ' + o[1].toLowerCase() + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div></div>' +
     '<div class="filtros">' + bt('sit', 'abertos', ant ? 'Não cumpridos' : 'Abertos', universo.filter(aberto).length) + bt('sit', 'concluidos', 'Concluídos') + bt('sit', 'arquivados', 'Arquivados') + bt('sit', 'todos', 'Todos') +
     '<span class="sep"></span>' + bt('trib', '', 'Todos os tribunais') + Object.keys(TRIB).map((k) => bt('trib', k, logoT(k) + TRIB_CURTO[k], cnt((p) => p.tribunal === k))).join('') + '</div>' +
-    '<div class="filtros" style="margin-top:-4px">' + bt('marca', '', 'Sem filtro') + Object.keys(MARCAS).map((k) => bt('marca', k, MARCAS[k][0], cnt(MARCAS[k][1]))).join('') + '</div>' +
+    '<div class="filtros" style="margin-top:-4px">' + bt('marca', '', 'Sem filtro') + Object.keys(MARCAS).map((k) => bt('marca', k, MARCAS[k][0], cnt(MARCAS[k][1]))).join('') +
+    '<label class="f-nat">Natureza da ação<select class="sel" id="fnat"><option value="">Todas (' + base.length + ')</option>' + Object.keys(nats).sort((a, b) => nats[b] - nats[a] || a.localeCompare(b)).map((n) => '<option value="' + esc(n) + '"' + (f.nat === n ? ' selected' : '') + '>' + esc(n) + ' (' + nats[n] + ')</option>').join('') + '</select></label></div>' +
     (!lista.length ? '<div class="card">' + vazio(universo.length ? 'Nenhum prazo com esses filtros.' : ant ? 'Nenhum prazo antigo ainda.' : 'Nenhum prazo cadastrado ainda.', ant ? 'arquivo' : 'prazo') + '</div>'
       : vis === 'calendario' ? calendarioPrazos(lista) : vis === 'tabela' ? tabelaPrazos(lista) : '<div class="card"><div class="lista">' + lista.map(itemPrazo).join('') + '</div></div>') +
     '<p class="pp mut" style="margin:10px 2px">' + lista.length + ' prazo(s)' + (ant ? ' · prazos cujo dia do vencimento já terminou' : ' · os vencidos passam automaticamente para <a href="#/antigos">Prazos antigos</a>') + '</p>';
@@ -349,6 +366,7 @@ function telaPrazos(ant) {
   $$('[data-dia]').forEach((c) => { c.onclick = () => { S.calDia = S.calDia === c.dataset.dia ? '' : c.dataset.dia; rr(); const a = $('#cal-dia'); if (a && S.calDia) a.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }; });
   $$('th[data-oc]').forEach((th) => { th.onclick = () => { const c = th.dataset.oc; S.ord = { c, d: S.ord.c === c ? -S.ord.d : 1 }; LS.set('ord', S.ord); rr(); }; });
   $$('[data-sit],[data-trib],[data-marca]').forEach((b) => { b.onclick = () => { const g = b.dataset.sit !== undefined ? 'sit' : b.dataset.trib !== undefined ? 'trib' : 'marca'; f[g] = b.dataset[g]; LS.set(chF, f); rr(); }; });
+  $('#fnat').onchange = (e) => { f.nat = e.target.value; LS.set(chF, f); rr(); };
   const qi = $('#q'); let tm;
   qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { f.q = qi.value; LS.set(chF, f); const pos = qi.selectionStart; rr(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); }, 250); };
   ligarListas($('#conteudo'));
@@ -390,6 +408,7 @@ function calendarioPrazos(lista) {
 }
 async function copiarPrompt(p) { try { await navigator.clipboard.writeText(p.prompt_minutaia || ''); toast('Prompt copiado.'); } catch (e) { toast('Não foi possível copiar.', true); } }
 document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-cpp]'); if (!b) return; e.stopPropagation(); e.preventDefault(); const p = ((S.dados && S.dados.prazos) || []).find((x) => x.id === b.dataset.cpp); if (p) copiarPrompt(p); }, true);
+document.head.insertAdjacentHTML('beforeend', '<style>.f-nat{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);margin-left:auto}.f-nat .sel{width:auto;min-width:200px;padding:5px 8px;font-size:13px}@media(max-width:760px){.f-nat{margin-left:0;width:100%}.f-nat .sel{flex:1;min-width:0}}</style>');
 document.head.insertAdjacentHTML('beforeend', '<style>.cal-m{display:inline-flex;align-items:center;gap:3px;width:max-content;max-width:100%;font-size:11px;font-weight:700;padding:1px 6px;border-radius:7px;line-height:1.5}.cal-m svg.i{width:13px;height:13px}.cal-m.pend{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad)}.cal-m.env{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok)}@media(max-width:760px){.cal-m{padding:0 3px;font-size:10px}.cal-m .cal-ms{display:none}}</style>');
 document.head.insertAdjacentHTML('beforeend', '<style>.pr-cel{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:1.35;min-width:240px;max-width:380px}.pr-cp{margin-top:4px}.pr-li{font-size:12px;line-height:1.35;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.pr-det{white-space:pre-wrap;font-size:13px;line-height:1.45;margin-bottom:6px}</style>');
 const COLS = [
