@@ -62,6 +62,28 @@ const fotoEu = (eu) => eu.foto || (['atendimento@fceadvogados.com.br', 'emerim@i
 const logoT = (k) => { const u = LOGO_T[String(k || '').replace(/[12]$/, '')]; return u ? '<img class="lg-t" src="' + u + '" alt="">' : ''; };
 const STATUS = { PENDENTE: 'A fazer', EM_ELABORACAO: 'Em elaboração', PROTOCOLADO: 'Protocolado', CIENCIA: 'Ciência dada', ARQUIVADO: 'Arquivado' };
 const MEMO = { NAO: 'Sem memorando', A_ENVIAR: 'A enviar', ENVIADO: 'Enviado – aguardando', RESPONDIDO: 'Respondido' };
+const MEMO_TIPO = {
+  INFORMAR_EXTINCAO: ['Informar decisão que extingue ou reduz a cobrança', 'Prescrição (intercorrente ou originária), ilegitimidade passiva, nulidade ou cancelamento da CDA, pagamento: a Fazenda baixa, cancela ou retifica o débito.'],
+  INFORMAR_DECISAO: ['Informar decisão judicial a cumprir', 'Liminar, tutela, sentença ou acórdão que a Secretaria deve cumprir (exclusão de cadastro, CND, suspensão da cobrança).'],
+  DOCS_DEFESA: ['Solicitar documentos e informações para a defesa', 'Contestação, impugnação, embargos, exceção de pré-executividade, informações em mandado de segurança, laudo, recursos.'],
+  DADOS_COBRANCA: ['Solicitar dados e cálculos para a cobrança', 'Prosseguimento da execução: cálculo atualizado, CPF, endereço, bens, óbito e herdeiros, saldo remanescente.'],
+  CONDENACAO: ['Condenações do Município: cálculos, RPV e precatório', 'Cumprimento de sentença contra o Município: conferência de cálculo, RPV, precatório e honorários.'],
+  CUSTAS: ['Custas e despesas processuais', 'Guias de custas, emolumentos, condução de oficial e cartas de ordem.'],
+  ACORDO: ['Acordos e parcelamentos', 'Termos de acordo, confissão de dívida e parcelamentos a juntar ou conferir.'],
+  OUTRO: ['Outros', 'Demais pedidos às secretarias municipais.']
+};
+function tipoMemo(p) {
+  if (p.memo_tipo && MEMO_TIPO[p.memo_tipo]) return p.memo_tipo;
+  const t = String(p.providencia || '').toLowerCase();
+  if (/liminar|tutela/.test(t)) return 'INFORMAR_DECISAO';
+  if (/rpv|precat|cumprimento de senten|honor[áa]rios para pagamento|reten[çc]/.test(t)) return 'CONDENACAO';
+  if (/custas|emolumento|condu[çc][ãa]o|despesas/.test(t)) return 'CUSTAS';
+  if (/acordo|confiss[ãa]o|parcelamento/.test(t)) return 'ACORDO';
+  if (/impugna|embargos|contesta|exce[çc][ãa]o|informa[çc][õo]es da autoridade|laudo|perito|exibi[çc][ãa]o|apela|natureza p[úu]blica|alega[çc][ãa]o de pagamento|prescri[çc][ãa]o intercorrente \(art\. 10/.test(t)) return 'DOCS_DEFESA';
+  if (/prosseguimento|c[áa]lculo|demonstrativo|planilha|cpf|herdeiro|[óo]bito|polo passivo|saldo|quita[çc][ãa]o|im[óo]vel|dep[óo]sito/.test(t)) return 'DADOS_COBRANCA';
+  if (/crp|ci[êe]ncia|prescri|ilegitim|extin|cancel/.test(t)) return 'INFORMAR_EXTINCAO';
+  return 'OUTRO';
+}
 const ATEND = { NAO: 'Não se aplica', A_DESPACHAR: 'A despachar', DESPACHADO: 'Despachado' };
 const SECRETARIAS = ['Fazenda', 'Administração', 'Saúde', 'Educação', 'Obras e Serviços Urbanos', 'Desenvolvimento Urbano e Habitação', 'Meio Ambiente', 'Desenvolvimento Social', 'Segurança', 'Mobilidade Urbana', 'Cultura', 'Esporte e Lazer', 'Gabinete do Prefeito', 'PROCON', 'COMUSA', 'Previdência (IPASEM)'];
 const ABERTOS = ['PENDENTE', 'EM_ELABORACAO'];
@@ -74,6 +96,7 @@ const S = {
   dados: LS.get('dados', null), carregadoEm: 0,
   f: Object.assign({ sit: 'abertos', trib: '', marca: '', q: '' }, LS.get('filtros', {})),
   fa: Object.assign({ sit: 'todos', trib: '', marca: '', q: '' }, LS.get('filtrosA', {})),
+  fms: (LS.get('fmemo', {}) || {}).s || 'pendentes', fmt: (LS.get('fmemo', {}) || {}).t || '',
   ft: 'abertas',
   vis: LS.get('vis', 'lista'), ord: LS.get('ord', { c: 'fim', d: 1 }),
   jt: LS.get('jt', 'relatoria'), jf: 'abertos', jq: '', jb: { q: '', tributo: '', resultado: '', ano: '' }, jr: null
@@ -465,14 +488,28 @@ VIEWS.tarefas = function () {
 };
 VIEWS.memorandos = function () {
   titulo('Memorandos');
-  const ab = prazos().filter((p) => aberto(p) && p.memo_status && p.memo_status !== 'NAO');
-  const bloco = (tit, st, txtVazio) => {
-    const l = ab.filter((p) => p.memo_status === st).sort((a, b) => String(a.memo_retorno || a.fim || '9').localeCompare(String(b.memo_retorno || b.fim || '9')));
-    return '<div class="sec-tit">' + tit + ' <span class="bdg' + (st === 'A_ENVIAR' && l.length ? ' r' : '') + '">' + l.length + '</span></div><div class="card"><div class="lista">' +
-      (l.map((p) => itemMemo(p)).join('') || vazio(txtVazio, 'memo')) + '</div></div>';
-  };
-  $('#conteudo').innerHTML = '<p class="mut pq" style="margin:14px 2px 0">Pedidos de informações e documentos às secretarias municipais, vinculados aos prazos abertos. O retorno deve chegar uma semana antes do prazo fatal.</p>' +
-    bloco('A enviar', 'A_ENVIAR', 'Nenhum memorando a enviar.') + bloco('Enviados – aguardando retorno', 'ENVIADO', 'Nenhum memorando aguardando retorno.') + bloco('Respondidos', 'RESPONDIDO', 'Nenhum memorando respondido em prazos abertos.') + blocoAtend();
+  const todos = prazos().filter((p) => aberto(p) && p.memo_status && p.memo_status !== 'NAO');
+  const SF = { pendentes: ['Pendentes', (p) => p.memo_status !== 'RESPONDIDO'], A_ENVIAR: ['A enviar', (p) => p.memo_status === 'A_ENVIAR'], ENVIADO: ['Aguardando retorno', (p) => p.memo_status === 'ENVIADO'], RESPONDIDO: ['Respondidos', (p) => p.memo_status === 'RESPONDIDO'], todos: ['Todos', () => true] };
+  if (!SF[S.fms]) S.fms = 'pendentes';
+  if (S.fmt && !MEMO_TIPO[S.fmt]) S.fmt = '';
+  const porSit = todos.filter(SF[S.fms][1]);
+  const bs = (v) => '<button data-fms="' + v + '" class="' + (S.fms === v ? 'on' : '') + '">' + SF[v][0] + '<span class="n">' + todos.filter(SF[v][1]).length + '</span></button>';
+  const bt = (v, t, n) => '<button data-fmt="' + v + '" class="' + ((S.fmt || '') === v ? 'on' : '') + '">' + t + '<span class="n">' + n + '</span></button>';
+  const ordem = { A_ENVIAR: 0, ENVIADO: 1, RESPONDIDO: 2 };
+  const ret = (p) => String(p.memo_retorno || p.fim || '9');
+  const secoes = Object.keys(MEMO_TIPO).filter((k) => !S.fmt || S.fmt === k).map((k) => {
+    const l = porSit.filter((p) => tipoMemo(p) === k).sort((a, b) => (ordem[a.memo_status] - ordem[b.memo_status]) || ret(a).localeCompare(ret(b)));
+    if (!l.length) return '';
+    const ae = l.filter((p) => p.memo_status === 'A_ENVIAR').length;
+    return '<div class="sec-tit">' + esc(MEMO_TIPO[k][0]) + ' <span class="bdg' + (ae ? ' r' : '') + '">' + l.length + '</span></div><p class="mut pq" style="margin:-4px 2px 8px">' + esc(MEMO_TIPO[k][1]) + (ae ? ' <b style="color:var(--bad)">' + ae + ' a enviar.</b>' : '') + '</p>' +
+      '<div class="card"><div class="lista">' + l.map((p) => itemMemo(p)).join('') + '</div></div>';
+  }).join('');
+  $('#conteudo').innerHTML = '<p class="mut pq" style="margin:14px 2px 0">Pedidos às secretarias municipais, separados pelo tipo de tarefa e vinculados aos prazos abertos. O retorno deve chegar uma semana antes do prazo fatal.</p>' +
+    '<div class="filtros">' + Object.keys(SF).map(bs).join('') + '</div>' +
+    '<div class="filtros" style="margin-top:-4px">' + bt('', 'Todos os tipos', porSit.length) + Object.keys(MEMO_TIPO).map((k) => [k, porSit.filter((p) => tipoMemo(p) === k).length]).filter((x) => x[1]).map((x) => bt(x[0], MEMO_TIPO[x[0]][0], x[1])).join('') + '</div>' +
+    (secoes || '<div class="card" style="margin-top:12px"><div class="lista">' + vazio('Nenhum memorando com esses filtros.', 'memo') + '</div></div>') + blocoAtend();
+  $$('[data-fms]').forEach((b) => { b.onclick = () => { S.fms = b.dataset.fms; LS.set('fmemo', { s: S.fms, t: S.fmt || '' }); VIEWS.memorandos(); }; });
+  $$('[data-fmt]').forEach((b) => { b.onclick = () => { S.fmt = b.dataset.fmt; LS.set('fmemo', { s: S.fms, t: S.fmt || '' }); VIEWS.memorandos(); }; });
   $$('[data-as]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); mudarAtend(b.dataset.id, b.dataset.as); }; });
   $$('[data-ms]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); mudarMemo(b.dataset.id, b.dataset.ms); }; });
   ligarListas($('#conteudo'));
@@ -487,7 +524,7 @@ function itemMemo(p) {
   const ret = p.memo_retorno || (p.fim ? addDias(p.fim, -7) : null), n = dias(ret);
   const prox = p.memo_status === 'A_ENVIAR' ? ['ENVIADO', 'Marcar enviado'] : p.memo_status === 'ENVIADO' ? ['RESPONDIDO', 'Marcar respondido'] : null;
   return '<div class="item clic" data-p="' + esc(p.id) + '"><span class="dot ' + (p.memo_status === 'RESPONDIDO' ? 'ok' : urg(n)) + '"></span><div class="mid"><div class="t">' + esc(p.memo_secretaria || 'Secretaria não informada') + ' · ' + esc(p.processo) + '</div>' +
-    '<div class="d">' + esc(p.parte || '') + (p.parte && p.providencia ? ' – ' : '') + esc(p.providencia || '') + '</div><div class="tags"><span class="chip nav">' + logoT(p.tribunal) + esc(TRIB_CURTO[p.tribunal]) + '</span><span class="chip">prazo ' + fdata(p.fim) + '</span></div></div>' +
+    '<div class="d">' + esc(p.parte || '') + (p.parte && p.providencia ? ' – ' : '') + esc(p.providencia || '') + '</div><div class="tags"><span class="chip nav">' + logoT(p.tribunal) + esc(TRIB_CURTO[p.tribunal]) + '</span><span class="chip">prazo ' + fdata(p.fim) + '</span><span class="chip ' + ({ A_ENVIAR: 'bad', ENVIADO: 'warn', RESPONDIDO: 'ok' }[p.memo_status] || '') + '">' + esc(MEMO[p.memo_status] || '') + '</span></div></div>' +
     '<div class="dir"><span class="pp mut">retorno até</span><span class="data">' + fdata(ret) + '</span>' + (prox ? '<button class="btn sm" data-ms="' + prox[0] + '" data-id="' + esc(p.id) + '">' + prox[1] + '</button>' : '') + '</div></div>';
 }
 VIEWS.mais = function () {
@@ -1102,7 +1139,7 @@ function verPrazo(id) {
     L('Prazo', (p.inicio ? fdata(p.inicio) + ' a ' : 'até ') + '<b>' + fdata(p.fim, true) + '</b>') + L('Providência / peça', '<b>' + esc(p.providencia) + '</b>') +
     (p.prompt_minutaia ? L('Prompt MinutaIA', '<div class="pr-det">' + esc(p.prompt_minutaia) + '</div><button class="btn sm" data-cpd>Copiar prompt</button>') : '') +
     L('Embargos de declaração', p.ed_cabivel ? 'Cabíveis' + (p.ed_prazo ? ' – prazo até <b>' + fdata(p.ed_prazo, true) + '</b>' : '') + (p.ed_obs ? '<br><span class="mut">' + esc(p.ed_obs) + '</span>' : '') : 'Não cabíveis') +
-    L('Memorando', p.memo_status && p.memo_status !== 'NAO' ? esc(p.memo_secretaria || 'Secretaria não informada') + ' – ' + esc(MEMO[p.memo_status]) + (p.memo_retorno ? '<br><span class="mut">retorno até ' + fdata(p.memo_retorno, true) + '</span>' : '') : 'Não é necessário') +
+    L('Memorando', p.memo_status && p.memo_status !== 'NAO' ? '<b>' + esc(MEMO_TIPO[tipoMemo(p)][0]) + '</b><br>' + esc(p.memo_secretaria || 'Secretaria não informada') + ' – ' + esc(MEMO[p.memo_status]) + (p.memo_retorno ? '<br><span class="mut">retorno até ' + fdata(p.memo_retorno, true) + '</span>' : '') : 'Não é necessário') +
     (p.atend_status && p.atend_status !== 'NAO' ? L('Atendenet', '<span class="chip ' + (p.atend_status === 'DESPACHADO' ? 'ok' : 'bad') + '">' + esc(ATEND[p.atend_status]) + '</span>' + (p.atend_protocolo ? '<br><span class="mut">' + esc(p.atend_protocolo) + '</span>' : '') + '<br><button class="btn sm" data-asv="' + (p.atend_status === 'A_DESPACHAR' ? 'DESPACHADO">Marcar despachado' : 'A_DESPACHAR">Voltar para a despachar') + '</button>') : '') +
     L('Teor', esc(p.teor)) + L('Observações', esc(p.observacoes)) + '</dl>' +
     '<div class="acoesrap">' + (aberto(p)
@@ -1142,7 +1179,8 @@ function editarPrazo(p) {
     '<div class="grupo">Memorando a secretaria municipal</div>' +
     '<label>Situação<select class="sel" name="memo_status">' + Object.entries(MEMO).map((e) => o(e, p.memo_status || 'NAO')).join('') + '</select></label>' +
     '<label>Secretaria<input class="inp" name="memo_secretaria" list="secs" value="' + esc(p.memo_secretaria || '') + '"><datalist id="secs">' + SECRETARIAS.map((s) => '<option value="' + esc(s) + '">').join('') + '</datalist></label>' +
-    inp('memo_retorno', 'Retorno até (uma semana antes do prazo)', 'date') + '<span></span>' +
+    '<label>Tipo de tarefa<select class="sel" name="memo_tipo"><option value="">Automático (pela providência)</option>' + Object.entries(MEMO_TIPO).map((e) => o([e[0], e[1][0]], p.memo_tipo || '')).join('') + '</select></label>' +
+    inp('memo_retorno', 'Retorno até (uma semana antes do prazo)', 'date') +
     '<div class="grupo">Protocolo administrativo – Atendenet (cumprimento de sentença)</div>' +
     '<label>Situação<select class="sel" name="atend_status">' + Object.entries(ATEND).map((e) => o(e, p.atend_status || 'NAO')).join('') + '</select></label>' +
     inp('atend_protocolo', 'Nº do protocolo / data informados pela parte') +
