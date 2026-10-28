@@ -16,6 +16,7 @@ const LS = {
 
 const IC = {
   casa: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+  agenda: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><circle cx="12" cy="15" r="2"/>',
   prazo: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/>',
   tarefa: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
   memo: '<path d="M4 4h16v16H4z"/><path d="M4 7l8 6 8-6"/>',
@@ -198,6 +199,7 @@ async function carregar(forcar) {
 const prazos = () => (S.dados && S.dados.prazos) || [];
 const tarefas = () => (S.dados && S.dados.tarefas) || [];
 const cumprimentos = () => (S.dados && S.dados.cumprimentos) || [];
+const audiencias = () => (S.dados && S.dados.audiencias) || [];
 const aberto = (p) => ABERTOS.includes(p.status);
 function substituir(lista, obj) { const i = lista.findIndex((x) => x.id === obj.id); if (i >= 0) lista[i] = obj; else lista.push(obj); }
 function ordenar() {
@@ -215,6 +217,7 @@ const ROTAS = [
   { k: 'ordens', t: 'Lista de Tarefas', tc: 'Tarefas', ic: 'fila' },
   { k: 'memorandos', t: 'Memorandos', tc: 'Memos', ic: 'memo' },
   { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' },
+  { k: 'audiencias', t: 'Audiências e perícias', tc: 'Audiências', ic: 'agenda', lat: true },
   { k: 'cumprimentos', t: 'Cumprimentos de sentença', tc: 'Cumprimentos', ic: 'martelo', lat: true },
   { k: 'cghs', t: 'CGHS – Honorários', ic: 'cghs', lat: true }
 ];
@@ -235,7 +238,7 @@ function iniciarApp() {
   $('#batual').onclick = () => rota(true);
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
-  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : location.hash.startsWith('#/cumprimentos') ? editarCumprimento() : editarPrazo());
+  $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : location.hash.startsWith('#/cumprimentos') ? editarCumprimento() : location.hash.startsWith('#/audiencias') ? editarAud() : editarPrazo());
   if (mb && !location.hash.startsWith('#/junta')) location.hash = '#/junta/virtual';
   if (!location.hash || location.hash === '#/') location.hash = '#/inicio';
   rota();
@@ -248,6 +251,7 @@ function badges() {
   const mem = prazos().filter((p) => aberto(p) && (p.memo_status === 'A_ENVIAR' || p.atend_status === 'A_DESPACHAR')).length;
   const set = (k, n, r) => $$('a[data-r="' + k + '"] .bdg-slot').forEach((e) => { e.innerHTML = n ? '<span class="bdg' + (r ? ' r' : '') + '">' + n + '</span>' : ''; });
   const jv = ((S.dados && S.dados.jrf && S.dados.jrf.processos) || []).filter((p) => !['JULGADO', 'ARQUIVADO'].includes(p.status) && p.prazo_voto && p.prazo_voto <= addDias(h, 3)).length;
+  set('audiencias', audiencias().filter((a) => a.situacao === 'AGENDADA' && a.data >= h && a.data <= addDias(h, 7)).length, false);
   set('prazos', urg, true); set('antigos', venc, true); set('cumprimentos', cumprimentos().filter((c) => c.situacao === 'A_EXECUTAR').length, false); set('memorandos', mem, false); set('junta', jv, true);
   set('ordens', ((S.dados && S.dados.ordens) || []).filter((o) => ['AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)).length, true);
 }
@@ -256,7 +260,7 @@ async function rota(forcar) {
   const [k, arg] = (location.hash.replace(/^#\//, '') || 'inicio').split('/');
   const v = MEMBRO() ? 'junta' : VIEWS[k] ? k : 'inicio';
   $$('a[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === v));
-  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : v === 'ordens' ? 'Nova tarefa' : v === 'cumprimentos' ? 'Novo cumprimento' : 'Novo prazo';
+  $('#bnovo span').textContent = v === 'tarefas' ? 'Nova tarefa' : v === 'junta' ? rotuloNovoJunta() : v === 'ordens' ? 'Nova tarefa' : v === 'cumprimentos' ? 'Novo cumprimento' : v === 'audiencias' ? 'Nova audiência' : 'Novo prazo';
   $('#conteudo').classList.remove('largo');
   const meu = ++rodando;
   if (!S.dados) $('#conteudo').innerHTML = '<div class="carregando"><div class="spin"></div></div>';
@@ -534,6 +538,7 @@ VIEWS.mais = function () {
   $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px"><div class="lista"><div class="item"><div class="av">' + (fotoEu(eu) ? '<img src="' + esc(fotoEu(eu)) + '" alt="" referrerpolicy="no-referrer">' : '') + '</div><div class="mid"><div class="t">' + esc(eu.nome || '') + '</div><div class="d">' + esc(eu.email || '') + '</div></div></div>' +
     '<div class="item">' + ic(temaEfetivo() === 'escuro' ? 'lua' : 'sol') + '<div class="mid"><div class="t">Tema</div><div class="seg" style="margin-top:8px">' + [['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map((o) => '<button data-tema="' + o[0] + '" class="' + (tema === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div></div>' +
     '<a class="item clic" href="#/antigos">' + ic('arquivo') + '<div class="mid"><div class="t">Prazos antigos</div><div class="d">Prazos cujo dia do vencimento já terminou</div></div></a>' +
+    '<a class="item clic" href="#/audiencias">' + ic('agenda') + '<div class="mid"><div class="t">Audiências e perícias</div><div class="d">Audiências, perícias e sessões designadas</div></div></a>' +
     '<a class="item clic" href="#/cumprimentos">' + ic('martelo') + '<div class="mid"><div class="t">Cumprimentos de sentença</div><div class="d">Honorários sucumbenciais a executar pelo Município</div></div></a>' +
     '<a class="item clic" href="#/cghs">' + ic('cghs') + '<div class="mid"><div class="t">CGHS – Honorários</div><div class="d">Arquivos mensais dos honorários e controle online</div></div></a>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
@@ -1104,6 +1109,77 @@ function itemCumprimento(c) {
   return '<div class="item clic" data-cs="' + esc(c.id) + '"><span class="dot ' + (c.situacao === 'A_EXECUTAR' ? 'warn' : c.situacao === 'PAGO' ? 'ok' : '') + '"></span><div class="mid"><div class="t"><span class="num">' + esc(c.processo) + '</span>' + (c.devedor ? '<span class="par"><span class="sep-p"> · </span>' + esc(c.devedor) + '</span>' : '') + '</div>' +
     '<div class="d">' + esc(c.honorarios || c.titulo || c.classe || '') + '</div>' + (c.observacoes ? '<div class="d mut">' + esc(c.observacoes) + '</div>' : '') + '<div class="tags">' + tags.join('') + '</div></div>' +
     '<div class="dir">' + (c.valor ? '<span class="data">' + fmoeda(c.valor) + '</span>' : '') + (prox ? '<button class="btn sm" data-csn="' + prox[0] + '" data-id="' + esc(c.id) + '">' + prox[1] + '</button>' : '') + '</div></div>';
+}
+// ---------- Audiências e perícias ----------
+const AUD_TIPO = { CONCILIACAO: 'Audiência de conciliação / mediação', INSTRUCAO: 'Audiência de instrução e julgamento', AUDIENCIA: 'Audiência', PERICIA: 'Perícia', SESSAO: 'Sessão de julgamento / sustentação oral', OUTRO: 'Outro ato' };
+const AUD_SIT = { AGENDADA: 'Agendada', REALIZADA: 'Realizada', REDESIGNADA: 'Redesignada', CANCELADA: 'Cancelada' };
+const AUD_MOD = { VIRTUAL: 'Virtual (videoconferência)', PRESENCIAL: 'Presencial', HIBRIDA: 'Híbrida' };
+const horaAud = (a) => (a.hora_ini ? a.hora_ini.slice(0, 5) : '') + (a.hora_fim ? '–' + a.hora_fim.slice(0, 5) : '');
+VIEWS.audiencias = function () {
+  titulo('Audiências e perícias');
+  if (!['proximas', 'passadas', 'todas'].includes(S.fau)) S.fau = 'proximas';
+  const h = hoje();
+  const todas = audiencias().slice().sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')) || String(a.hora_ini || '').localeCompare(String(b.hora_ini || '')));
+  const ehProx = (a) => a.situacao === 'AGENDADA' && (!a.data || a.data >= h);
+  const prox = todas.filter(ehProx), pass = todas.filter((a) => !ehProx(a)).reverse();
+  const lista = S.fau === 'proximas' ? prox : S.fau === 'passadas' ? pass : todas;
+  const bt = (v, t, n) => '<button data-fau="' + v + '" class="' + (S.fau === v ? 'on' : '') + '">' + t + '<span class="n">' + n + '</span></button>';
+  const sem = prox.filter((a) => a.data && a.data <= addDias(h, 7)).length;
+  $('#conteudo').innerHTML = '<p class="mut pq" style="margin:14px 2px 0">Audiências, perícias e sessões designadas nos processos, com data, hora, local ou link e as providências antes do ato.' + (sem ? ' <b style="color:var(--warn)">' + sem + ' nos próximos 7 dias.</b>' : '') + '</p>' +
+    '<div class="filtros">' + bt('proximas', 'Próximas', prox.length) + bt('passadas', 'Realizadas e anteriores', pass.length) + bt('todas', 'Todas', todas.length) + '</div>' +
+    '<div class="card"><div class="lista">' + (lista.map(itemAud).join('') || vazio(S.fau === 'proximas' ? 'Nenhuma audiência ou perícia agendada.' : 'Nada por aqui.', 'agenda')) + '</div></div>';
+  $$('[data-fau]').forEach((b) => { b.onclick = () => { S.fau = b.dataset.fau; VIEWS.audiencias(); }; });
+  $$('[data-aud]').forEach((e) => { e.onclick = () => verAud(e.dataset.aud); });
+};
+function itemAud(a) {
+  const n = dias(a.data), ag = a.situacao === 'AGENDADA';
+  const tags = ['<span class="chip nav">' + logoT(a.tribunal) + esc(TRIB_CURTO[a.tribunal] || a.tribunal || '') + '</span>'];
+  if (a.modalidade) tags.push('<span class="chip">' + esc((AUD_MOD[a.modalidade] || a.modalidade).split(' ')[0]) + '</span>');
+  if (!ag) tags.push('<span class="chip ' + (a.situacao === 'REALIZADA' ? 'ok' : 'warn') + '">' + esc(AUD_SIT[a.situacao] || a.situacao) + '</span>');
+  if (a.providencias && ag) tags.push('<span class="chip ouro">Providências antes do ato</span>');
+  return '<div class="item clic" data-aud="' + esc(a.id) + '"><span class="dot ' + (ag ? (urg(n) || 'info') : 'ok') + '"></span><div class="mid"><div class="t">' + esc(AUD_TIPO[a.tipo] || a.tipo) + ' · <span class="num">' + esc(a.processo) + '</span></div>' +
+    '<div class="d">' + esc(a.parte || '') + (a.parte && (a.local || a.link) ? ' – ' : '') + esc(a.local || (a.link ? 'link de acesso cadastrado' : '')) + '</div><div class="tags">' + tags.join('') + '</div></div>' +
+    '<div class="dir"><span class="data">' + fdata(a.data, true) + '</span><span class="pp mut">' + esc(horaAud(a)) + '</span>' + (ag && a.data ? '<span class="chip ' + (urg(n) || '') + '">' + rel(n).replace('vence hoje', 'hoje').replace('venceu', 'foi') + '</span>' : '') + '</div></div>';
+}
+function verAud(id) {
+  const a = audiencias().find((x) => x.id === id); if (!a) return;
+  const L = (k, v) => v ? '<dt>' + k + '</dt><dd>' + v + '</dd>' : '';
+  const pz = prazos().find((p) => p.processo === a.processo && aberto(p));
+  const corpo = '<dl class="det">' + L('Ato', '<b>' + esc(AUD_TIPO[a.tipo] || a.tipo) + '</b>') + L('Situação', esc(AUD_SIT[a.situacao] || a.situacao)) +
+    L('Data e hora', '<b>' + fdata(a.data, true) + (horaAud(a) ? ' · ' + esc(horaAud(a)) : '') + '</b>' + (a.situacao === 'AGENDADA' && a.data ? ' <span class="mut">(' + rel(dias(a.data)).replace('vence hoje', 'hoje').replace('venceu', 'foi') + ')</span>' : '')) +
+    L('Processo', esc(a.processo) + ' · ' + esc(TRIB[a.tribunal] || a.tribunal || '')) + L('Classe', esc(a.classe)) + L('Parte contrária', esc(a.parte)) + L('Modalidade', esc(AUD_MOD[a.modalidade] || a.modalidade)) +
+    L('Local', esc(a.local)) + L('Link', a.link ? '<a href="' + esc(a.link) + '" target="_blank" rel="noopener">' + esc(a.link) + '</a>' : '') +
+    L('Perito / conciliador', esc(a.perito)) + L('Pelo Município', esc(a.assistente)) + L('Providências antes do ato', esc(a.providencias)) + L('Observações', esc(a.observacoes)) + '</dl>';
+  const bts = [{ txt: 'Excluir', cls: 'fant perigo', acao: async () => { if (!(await confirmar('Excluir', 'Excluir este registro de audiência/perícia?', 'Excluir', true))) return false; await api('aud_excluir', { id: a.id }); S.dados.audiencias = audiencias().filter((x) => x.id !== a.id); redesenhar(); toast('Registro excluído.'); } }];
+  if (pz) bts.push({ txt: 'Ver prazo', acao: () => { setTimeout(() => verPrazo(pz.id), 50); } });
+  if (a.situacao === 'AGENDADA') bts.push({ txt: 'Marcar realizada', ic: 'check', acao: async () => { const r = await api('aud_situacao', { id: a.id, situacao: 'REALIZADA' }); substituir(S.dados.audiencias, r); redesenhar(); toast('Marcada como realizada.'); } });
+  bts.push({ txt: 'Editar', cls: 'pri', ic: 'editar', acao: () => { setTimeout(() => editarAud(a), 50); } });
+  modal({ titulo: AUD_TIPO[a.tipo] || 'Audiência', corpo, largo: true, botoes: bts });
+}
+function editarAud(a) {
+  a = a || { tipo: 'CONCILIACAO', situacao: 'AGENDADA', tribunal: 'TJRS1', modalidade: 'VIRTUAL' };
+  const o = (v, sel) => '<option value="' + esc(v[0]) + '"' + (v[0] === sel ? ' selected' : '') + '>' + esc(v[1]) + '</option>';
+  const inp = (n, rot, tipo, cls, extra) => '<label class="' + (cls || '') + '">' + rot + '<input class="inp" name="' + n + '" type="' + (tipo || 'text') + '" value="' + esc(a[n] ? String(a[n]).slice(0, tipo === 'time' ? 5 : 500) : '') + '"' + (extra || '') + '></label>';
+  const corpo = '<form class="form" id="fa" autocomplete="off">' +
+    '<label>Ato<select class="sel" name="tipo">' + Object.entries(AUD_TIPO).map((e) => o(e, a.tipo)).join('') + '</select></label>' +
+    '<label>Situação<select class="sel" name="situacao">' + Object.entries(AUD_SIT).map((e) => o(e, a.situacao)).join('') + '</select></label>' +
+    '<label>Tribunal / grau<select class="sel" name="tribunal">' + Object.entries(TRIB).map((e) => o(e, a.tribunal)).join('') + '</select></label>' +
+    inp('processo', 'Processo', 'text', '', ' required placeholder="0000000-00.0000.0.00.0000"') +
+    inp('parte', 'Parte contrária') + inp('classe', 'Classe') +
+    inp('data', 'Data', 'date', '', ' required') + '<label>Modalidade<select class="sel" name="modalidade">' + Object.entries(AUD_MOD).map((e) => o(e, a.modalidade)).join('') + '</select></label>' +
+    inp('hora_ini', 'Início', 'time') + inp('hora_fim', 'Término', 'time') +
+    inp('local', 'Local (sala, endereço, CEJUSC)', 'text', 'full') + inp('link', 'Link de acesso', 'url', 'full', ' placeholder="https://"') +
+    inp('perito', 'Perito / conciliador / mediador') + inp('assistente', 'Pelo Município (procurador, preposto, assistente técnico)') +
+    '<label class="full">Providências antes do ato<textarea class="inp" name="providencias" style="min-height:60px" placeholder="Ex.: indicar assistente técnico e quesitos; levar proposta da Fazenda; credenciar preposto">' + esc(a.providencias || '') + '</textarea></label>' +
+    '<label class="full">Observações<textarea class="inp" name="observacoes" style="min-height:60px">' + esc(a.observacoes || '') + '</textarea></label></form>';
+  modal({ titulo: a.id ? 'Editar audiência / perícia' : 'Nova audiência / perícia', corpo, largo: true, botoes: [{ txt: 'Cancelar', valor: null }, { txt: 'Salvar', cls: 'pri', ic: 'check', acao: async (v) => {
+    const d = Object.fromEntries(new FormData($('#fa', v)).entries()); d.id = a.id || null;
+    if (!String(d.processo || '').trim() || !d.data) { toast('Informe o processo e a data.', true); return false; }
+    const pz = prazos().find((p) => p.processo === d.processo.trim()); if (pz && !d.prazo_id) d.prazo_id = pz.id;
+    const r = await api('aud_salvar', { audiencia: d });
+    if (!S.dados.audiencias) S.dados.audiencias = [];
+    substituir(S.dados.audiencias, r); redesenhar(); toast(a.id ? 'Audiência atualizada.' : 'Audiência cadastrada.');
+  } }] });
 }
 function editarCumprimento(c) {
   c = c || {};
