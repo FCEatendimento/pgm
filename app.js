@@ -235,7 +235,7 @@ function iniciarApp() {
   $('#bsair').onclick = () => sair(false);
   if ($('#bvoz')) $('#bvoz').onclick = () => abrirAssistente(true);
   if (mb) { $('.marca b').textContent = 'Junta de Recursos'; $('.marca span').textContent = 'Fiscais · Novo Hamburgo'; }
-  $('#batual').onclick = () => rota(true);
+  $('#batual').onclick = () => { S.cgRat = null; S.cghsMensal = null; S.cghs = null; rota(true); };
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
   $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : location.hash.startsWith('#/cumprimentos') ? editarCumprimento() : location.hash.startsWith('#/audiencias') ? editarAud() : editarPrazo());
