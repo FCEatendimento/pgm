@@ -235,7 +235,7 @@ function iniciarApp() {
   $('#bsair').onclick = () => sair(false);
   if ($('#bvoz')) $('#bvoz').onclick = () => abrirAssistente(true);
   if (mb) { $('.marca b').textContent = 'Junta de Recursos'; $('.marca span').textContent = 'Fiscais · Novo Hamburgo'; }
-  $('#batual').onclick = () => { S.cgRat = null; S.cghsMensal = null; S.cghs = null; rota(true); };
+  $('#batual').onclick = () => { S.cgRat = null; S.cgIng = null; S.cghsMensal = null; S.cghs = null; rota(true); };
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
   $('#bnovo').onclick = () => (location.hash.startsWith('#/tarefas') ? editarTarefa() : location.hash.startsWith('#/junta') ? novoJunta() : location.hash.startsWith('#/ordens') ? editarOrdem({ tipo: 'OUTRO' }) : location.hash.startsWith('#/cumprimentos') ? editarCumprimento() : location.hash.startsWith('#/audiencias') ? editarAud() : editarPrazo());
@@ -1212,11 +1212,84 @@ function cgLigarRateio() {
   $$('[data-cgr]').forEach((tr) => { tr.onclick = () => cgVerRateio(S.cgRat.rateios.find((x) => x.mes === tr.dataset.cgr)); });
 }
 document.head.insertAdjacentHTML('beforeend', '<style>.cg-kpis{margin-bottom:4px}.cg-tab select.inp,.cg-tab input.inp{height:32px;padding:0 8px;width:auto;min-width:78px;text-align:right}.cg-tab tfoot td{border-top:2px solid var(--line-2)}.cg-mud td{background:color-mix(in srgb,var(--gold) 10%,transparent)}</style>');
+// ---------- CGHS – Ingressos judiciais (extratos Banrisul) ----------
+// Créditos "RESGATE/PAGAMENTO DEPOSITO JUDICIAL" das contas 04.001781.0-4 (PMNH) e 04.263706.0-3 (Sucumbência CPC), lidos dos extratos mensais.
+const ING_CONTA = { '04.001781.0-4': 'Conta movimento PMNH', '04.263706.0-3': 'Sucumbência CPC' };
+const ING_SIT = { A_IDENTIFICAR: 'A identificar', HONORARIOS: 'Com honorários', SEM_HONORARIOS: 'Sem honorários', RATEADO: 'Já rateado' };
+const ING_COR = { A_IDENTIFICAR: 'warn', HONORARIOS: 'ouro', SEM_HONORARIOS: '', RATEADO: 'ok' };
+const ingF = () => { if (!S.ingF) S.ingF = LS.get('ingF', { mes: '', conta: '', sit: '', q: '' }); return S.ingF; };
+function ingFiltrar(l) {
+  const f = ingF(), q = String(f.q || '').trim().toLowerCase();
+  return l.filter((g) => (!f.mes || String(g.data).slice(0, 7) === f.mes) && (!f.conta || g.conta === f.conta) && (!f.sit || g.situacao === f.sit) &&
+    (!q || [g.processo, g.documento, g.alvara, g.memorando, g.obs, String(g.valor).replace('.', ',')].some((x) => String(x || '').toLowerCase().includes(q))));
+}
+function htmlIngressos(l) {
+  const f = ingF(), lf = ingFiltrar(l);
+  const soma = (a, k) => a.reduce((s, g) => s + (+g[k] || 0), 0);
+  const meses = [...new Set(l.map((g) => String(g.data).slice(0, 7)))].sort().reverse();
+  const kpi = (rot, val, sub) => '<div class="card kpi"><div class="rot">' + rot + '</div><div class="val" style="font-size:17px;white-space:nowrap">' + val + '</div><div class="sub">' + sub + '</div></div>';
+  const aId = lf.filter((g) => g.situacao === 'A_IDENTIFICAR');
+  const comH = lf.filter((g) => g.honorarios !== null && g.honorarios !== undefined);
+  // quadro mês × conta
+  const porMes = meses.map((m) => { const a = l.filter((g) => String(g.data).slice(0, 7) === m); const c1 = a.filter((g) => g.conta === '04.001781.0-4'), c2 = a.filter((g) => g.conta === '04.263706.0-3');
+    return '<tr class="clic' + (f.mes === m ? ' cg-mud' : '') + '" data-ingm="' + m + '"><td class="nw"><b>' + esc(cgComp(m)) + '</b></td><td class="nw num-r">' + c1.length + ' · ' + fmoeda(soma(c1, 'valor')) + '</td><td class="nw num-r">' + c2.length + ' · ' + fmoeda(soma(c2, 'valor')) + '</td><td class="nw num-r"><b>' + fmoeda(soma(a, 'valor')) + '</b></td><td class="nw num-r">' + a.filter((g) => g.situacao === 'A_IDENTIFICAR').length + '</td></tr>'; }).join('');
+  const sel = (nome, opts, v) => '<select class="inp" data-ingf="' + nome + '" style="height:36px;width:auto">' + opts.map((o) => '<option value="' + esc(o[0]) + '"' + (o[0] === v ? ' selected' : '') + '>' + esc(o[1]) + '</option>').join('') + '</select>';
+  const linhas = lf.slice(0, 400).map((g) => '<tr class="clic" data-ing="' + esc(g.id) + '"><td class="nw">' + fdata(g.data) + '</td><td class="nw pp">' + esc(ING_CONTA[g.conta] || g.conta) + '<div class="mut">doc. ' + esc(g.documento) + '</div></td><td class="nw num-r"><b>' + fmoeda(g.valor) + '</b></td>' +
+    '<td class="pp">' + (g.processo ? esc(g.processo) : '<span class="mut">–</span>') + (g.alvara ? '<div class="mut">alvará ' + esc(g.alvara) + '</div>' : '') + (g.memorando ? '<div class="mut">memo ' + esc(g.memorando) + '</div>' : '') + '</td>' +
+    '<td class="nw num-r">' + (g.honorarios === null || g.honorarios === undefined ? '<span class="mut">–</span>' : fmoeda(g.honorarios)) + '</td>' +
+    '<td class="nw"><span class="chip ' + (ING_COR[g.situacao] || '') + '">' + esc(ING_SIT[g.situacao] || g.situacao) + '</span>' + (g.mes_rateio ? '<div class="pp mut">rateio ' + esc(cgComp(g.mes_rateio)) + '</div>' : '') + '</td></tr>').join('');
+  return '<div class="card aviso" style="margin-top:14px"><div class="ico">' + ic('martelo', 's') + '</div><div><b>Ingressos de processos judiciais</b><p>Créditos de alvarás judiciais ("Resgate/pagamento depósito judicial") nas contas do Banrisul 04.001781.0-4 (PMNH) e 04.263706.0-3 (Sucumbência CPC), lidos dos extratos mensais da pasta do CGHS. Clique num lançamento para informar processo, alvará, memorando e honorários.</p></div></div>' +
+    '<div class="kpis cg-kpis" style="margin-top:14px">' + kpi('Ingressos', fmoeda(soma(lf, 'valor')), lf.length + ' lançamento(s)') + kpi('A identificar', fmoeda(soma(aId, 'valor')), aId.length + ' lançamento(s)') +
+    kpi('Honorários identificados', fmoeda(soma(comH, 'honorarios')), comH.length + ' lançamento(s)') + kpi('Já rateados', fmoeda(soma(lf.filter((g) => g.situacao === 'RATEADO'), 'honorarios')), lf.filter((g) => g.situacao === 'RATEADO').length + ' lançamento(s)') + '</div>' +
+    '<div class="sec-tit">Por mês <span class="pp mut" style="font-weight:400">clique para filtrar</span></div><div class="card tab-wrap" style="max-height:none"><table class="tab cg-tab"><thead><tr><th>Mês</th><th class="num-r">PMNH (04.001781.0-4)</th><th class="num-r">Sucumbência CPC (04.263706.0-3)</th><th class="num-r">Total</th><th class="num-r">A identificar</th></tr></thead><tbody>' + (porMes || '<tr><td colspan="5">' + vazio('Nenhum extrato lido ainda.', 'doc') + '</td></tr>') + '</tbody></table></div>' +
+    '<div class="sec-tit">Lançamentos <span class="bdg">' + lf.length + '</span><button class="btn sm" data-ingcsv style="margin-left:auto">' + ic('tabela', 's') + '<span>Exportar planilha</span></button></div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px">' + sel('mes', [['', 'Todos os meses']].concat(meses.map((m) => [m, cgComp(m)])), f.mes) + sel('conta', [['', 'As duas contas'], ['04.001781.0-4', 'PMNH 04.001781.0-4'], ['04.263706.0-3', 'Sucumbência 04.263706.0-3']], f.conta) +
+    sel('sit', [['', 'Todas as situações']].concat(Object.entries(ING_SIT)), f.sit) + '<input class="inp" data-ingq placeholder="Buscar processo, documento, valor…" value="' + esc(f.q || '') + '" style="height:36px;flex:1;min-width:180px"></div>' +
+    '<div class="card tab-wrap" style="max-height:none"><table class="tab cg-tab"><thead><tr><th>Data</th><th>Conta</th><th class="num-r">Valor</th><th>Processo</th><th class="num-r">Honorários</th><th>Situação</th></tr></thead><tbody>' +
+    (linhas || '<tr><td colspan="6">' + vazio('Nenhum lançamento com esses filtros.', 'check') + '</td></tr>') + '</tbody></table></div>' +
+    (lf.length > 400 ? '<p class="pp mut" style="margin:8px 2px">Mostrando 400 de ' + lf.length + '. Use os filtros ou exporte a planilha.</p>' : '');
+}
+function ingEditar(g) {
+  const corpo = '<p class="mut" style="margin:0 0 10px">' + fdata(g.data) + ' · ' + esc(ING_CONTA[g.conta] || g.conta) + ' (' + esc(g.conta) + ') · doc. ' + esc(g.documento) + ' · <b>' + fmoeda(g.valor) + '</b></p><form class="form" id="fing" autocomplete="off">' +
+    '<label>Processo<input class="inp" name="processo" value="' + esc(g.processo || '') + '" placeholder="5000000-00.0000.8.21.0019"></label>' +
+    '<label>Nº do alvará<input class="inp" name="alvara" value="' + esc(g.alvara || '') + '"></label>' +
+    '<label>Memorando<input class="inp" name="memorando" value="' + esc(g.memorando || '') + '" placeholder="0000/2026"></label>' +
+    '<label>Honorários contidos (R$)<input class="inp" name="honorarios" inputmode="decimal" value="' + esc(g.honorarios === null || g.honorarios === undefined ? '' : Number(g.honorarios).toLocaleString('pt-BR', { minimumFractionDigits: 2 })) + '"></label>' +
+    '<label>Situação<select class="inp" name="situacao">' + Object.entries(ING_SIT).map((o) => '<option value="' + o[0] + '"' + (o[0] === g.situacao ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>' +
+    '<label>Rateado no pagamento de<input class="inp" type="month" name="mes_rateio" value="' + esc(g.mes_rateio || '') + '"></label>' +
+    '<label class="full">Observações<textarea class="inp" name="obs" style="min-height:60px">' + esc(g.obs || '') + '</textarea></label></form>' +
+    '<p class="pp mut" style="margin:8px 0 0">Origem: extrato ' + esc(g.arquivo || '') + '</p>';
+  modal({ titulo: 'Ingresso judicial', corpo, botoes: [
+    { txt: 'Excluir', ic: 'lixo', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Excluir lançamento', 'Excluir este lançamento da lista? Ele volta se o extrato for lido de novo.', 'Excluir', true))) return false; await api('cghs_ing_excluir', { id: g.id }); S.cgIng = S.cgIng.filter((x) => x.id !== g.id); VIEWS.cghs(); toast('Lançamento excluído.'); } },
+    { txt: 'Cancelar', valor: null },
+    { txt: 'Salvar', cls: 'pri', ic: 'check', acao: async (v) => {
+      const d = Object.fromEntries(new FormData($('#fing', v)).entries()); d.id = g.id;
+      if (d.honorarios && d.situacao === 'A_IDENTIFICAR') d.situacao = 'HONORARIOS';
+      const r = await api('cghs_ing_salvar', { ingresso: d });
+      S.cgIng = S.cgIng.map((x) => x.id === r.id ? r : x); VIEWS.cghs(); toast('Lançamento salvo.');
+    } }] });
+}
+function ingCsv(l) {
+  const n = (v) => v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const q = (s) => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const ls = [['DATA', 'CONTA', 'DOCUMENTO', 'VALOR', 'PROCESSO', 'ALVARÁ', 'MEMORANDO', 'HONORÁRIOS', 'SITUAÇÃO', 'RATEIO', 'OBS'].join(';')]
+    .concat(l.map((g) => [fdata(g.data), q(g.conta), q(g.documento), n(g.valor), q(g.processo), q(g.alvara), q(g.memorando), n(g.honorarios), q(ING_SIT[g.situacao] || g.situacao), q(g.mes_rateio ? cgComp(g.mes_rateio) : ''), q(g.obs)].join(';')));
+  const url = URL.createObjectURL(new Blob(['﻿' + ls.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  const f = ingF(), el = document.createElement('a'); el.href = url; el.download = 'Ingressos_judiciais' + (f.mes ? '_' + f.mes : '') + '.csv'; document.body.appendChild(el); el.click(); el.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function ingLigar() {
+  const salvarF = () => { LS.set('ingF', S.ingF); VIEWS.cghs(); };
+  $$('[data-ingf]').forEach((s) => { s.onchange = () => { ingF()[s.dataset.ingf] = s.value; salvarF(); }; });
+  const q = $('[data-ingq]'); if (q) { let t; q.oninput = () => { clearTimeout(t); t = setTimeout(() => { ingF().q = q.value; LS.set('ingF', S.ingF); const p = q.selectionStart; VIEWS.cghs(); const n = $('[data-ingq]'); if (n) { n.focus(); n.setSelectionRange(p, p); } }, 350); }; }
+  $$('[data-ingm]').forEach((tr) => { tr.onclick = () => { ingF().mes = ingF().mes === tr.dataset.ingm ? '' : tr.dataset.ingm; salvarF(); }; });
+  $$('[data-ing]').forEach((tr) => { tr.onclick = () => ingEditar(S.cgIng.find((x) => x.id === tr.dataset.ing)); });
+  const c = $('[data-ingcsv]'); if (c) c.onclick = () => ingCsv(ingFiltrar(S.cgIng));
+}
 VIEWS.cghs = function () {
   titulo('CGHS');
   if (S.cghsAba === undefined) S.cghsAba = LS.get('cghsAba', 'rateio');
-  const aba = ['arquivos', 'mensal'].includes(S.cghsAba) ? S.cghsAba : 'rateio';
-  const seg = '<div class="seg cg-seg" role="group" aria-label="Seção">' + [['rateio', 'Rateio mensal', 'cghs'], ['mensal', 'Comparativo mensal', 'tabela'], ['arquivos', 'Arquivos do Drive', 'doc']].map((o) => '<button data-cga="' + o[0] + '" class="' + (aba === o[0] ? 'on' : '') + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div>';
+  const aba = ['arquivos', 'mensal', 'ingressos'].includes(S.cghsAba) ? S.cghsAba : 'rateio';
+  const seg = '<div class="seg cg-seg" role="group" aria-label="Seção">' + [['rateio', 'Rateio mensal', 'cghs'], ['ingressos', 'Ingressos judiciais', 'martelo'], ['mensal', 'Comparativo mensal', 'tabela'], ['arquivos', 'Arquivos do Drive', 'doc']].map((o) => '<button data-cga="' + o[0] + '" class="' + (aba === o[0] ? 'on' : '') + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div>';
   const ligar = () => {
     $$('[data-cga]').forEach((b) => { b.onclick = () => { S.cghsAba = b.dataset.cga; LS.set('cghsAba', S.cghsAba); VIEWS.cghs(); }; });
     $$('[data-cm]').forEach((tr) => { tr.onclick = () => editarCghsMes((S.cghsMensal || []).find((x) => x.mes === tr.dataset.cm)); });
@@ -1230,6 +1303,16 @@ VIEWS.cghs = function () {
       api('cghs_rateio').then((d) => { S.cgRat = { procuradores: (d && d.procuradores) || [], rateios: (d && d.rateios) || [] }; if (location.hash.startsWith('#/cghs')) VIEWS.cghs(); })
         .catch((e) => { if (location.hash.startsWith('#/cghs')) { $('#conteudo').innerHTML = seg + '<div class="card" style="margin-top:14px">' + vazio(e.message || 'Erro ao ler o rateio.', 'alerta') + '</div>'; ligar(); } })
         .finally(() => { VIEWS.cghs.lendoR = false; });
+    }
+    return;
+  }
+  if (aba === 'ingressos') {
+    $('#conteudo').innerHTML = seg + (S.cgIng ? htmlIngressos(S.cgIng) : carregando); ligar(); if (S.cgIng) ingLigar();
+    if (!S.cgIng && !VIEWS.cghs.lendoI) {
+      VIEWS.cghs.lendoI = true;
+      api('cghs_ing_listar').then((d) => { S.cgIng = d || []; if (location.hash.startsWith('#/cghs')) VIEWS.cghs(); })
+        .catch((e) => { if (location.hash.startsWith('#/cghs')) { $('#conteudo').innerHTML = seg + '<div class="card" style="margin-top:14px">' + vazio(e.message || 'Erro ao ler os ingressos.', 'alerta') + '</div>'; ligar(); } })
+        .finally(() => { VIEWS.cghs.lendoI = false; });
     }
     return;
   }
