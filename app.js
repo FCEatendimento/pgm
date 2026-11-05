@@ -1211,17 +1211,23 @@ function cgLigarRateio() {
   $$('.cg-d').forEach((s) => { s.onchange = () => { const dm = cgDiasMes(S.cgRascunho.competencia); S.cgRascunho.itens[+s.dataset.k].dias = Math.min(dm, Math.max(0, Math.round(+s.value || 0))); cgCalcular(S.cgRascunho); VIEWS.cghs(); }; });
   $$('[data-cgr]').forEach((tr) => { tr.onclick = () => cgVerRateio(S.cgRat.rateios.find((x) => x.mes === tr.dataset.cgr)); });
 }
-document.head.insertAdjacentHTML('beforeend', '<style>.cg-kpis{margin-bottom:4px}.cg-tab select.inp,.cg-tab input.inp{height:32px;padding:0 8px;width:auto;min-width:78px;text-align:right}.cg-tab tfoot td{border-top:2px solid var(--line-2)}.cg-mud td{background:color-mix(in srgb,var(--gold) 10%,transparent)}</style>');
+document.head.insertAdjacentHTML('beforeend', '<style>.cg-kpis{margin-bottom:4px}.cg-tab select.inp,.cg-tab input.inp{height:32px;padding:0 8px;width:auto;min-width:78px;text-align:right}.cg-tab tfoot td{border-top:2px solid var(--line-2)}.cg-mud td{background:color-mix(in srgb,var(--gold) 10%,transparent)}.ing-ord{cursor:pointer;user-select:none;white-space:nowrap}.ing-ord .seta{opacity:.45;font-size:10px}.ing-ord.on .seta{opacity:1;color:var(--gold)}</style>');
 // ---------- CGHS – Ingressos judiciais (extratos Banrisul) ----------
 // Créditos "RESGATE/PAGAMENTO DEPOSITO JUDICIAL" das contas 04.001781.0-4 (PMNH) e 04.263706.0-3 (Sucumbência CPC), lidos dos extratos mensais.
 const ING_CONTA = { '04.001781.0-4': 'Conta movimento PMNH', '04.263706.0-3': 'Sucumbência CPC' };
 const ING_SIT = { A_IDENTIFICAR: 'A identificar', AGUARDA_MEMO: 'Aguardando memorando', HONORARIOS: 'Com honorários', SEM_HONORARIOS: 'Sem honorários', RATEADO: 'Já rateado' };
 const ING_COR = { A_IDENTIFICAR: 'warn', AGUARDA_MEMO: 'info', HONORARIOS: 'ouro', SEM_HONORARIOS: '', RATEADO: 'ok' };
-const ingF = () => { if (!S.ingF) S.ingF = LS.get('ingF', { mes: '', conta: '', sit: '', q: '' }); return S.ingF; };
+const ingF = () => { if (!S.ingF) S.ingF = LS.get('ingF', { mes: '', conta: '', sit: '', q: '' }); if (S.ingF.proc === undefined) S.ingF.proc = ''; if (!S.ingF.ord) { S.ingF.ord = 'data'; S.ingF.dir = 'desc'; } return S.ingF; };
+function ingOrdenar(l) {
+  const f = ingF(), k = f.ord || 'data', m = f.dir === 'asc' ? 1 : -1;
+  const val = (g) => k === 'data' ? String(g.data || '') : k === 'situacao' ? (ING_SIT[g.situacao] || String(g.situacao || '')) : (g[k] === null || g[k] === undefined || g[k] === '' ? null : +g[k]);
+  return l.slice().sort((a, b) => { const x = val(a), y = val(b); if (x === null && y === null) return 0; if (x === null) return 1; if (y === null) return -1;
+    const c = typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : x - y; return c * m || String(a.data).localeCompare(String(b.data)) * m || (+a.valor - +b.valor) * m; });
+}
 function ingFiltrar(l) {
   const f = ingF(), q = String(f.q || '').trim().toLowerCase();
-  return l.filter((g) => (!f.mes || String(g.data).slice(0, 7) === f.mes) && (!f.conta || g.conta === f.conta) && (!f.sit || g.situacao === f.sit) &&
-    (!q || [g.processo, g.documento, g.alvara, g.memorando, g.obs, g.procurador, String(g.valor).replace('.', ',')].some((x) => String(x || '').toLowerCase().includes(q))));
+  return ingOrdenar(l.filter((g) => (!f.mes || String(g.data).slice(0, 7) === f.mes) && (!f.conta || g.conta === f.conta) && (!f.sit || g.situacao === f.sit) && (!f.proc || (f.proc === '__sem' ? !g.procurador : g.procurador === f.proc)) &&
+    (!q || [g.processo, g.documento, g.alvara, g.memorando, g.obs, g.procurador, String(g.valor).replace('.', ',')].some((x) => String(x || '').toLowerCase().includes(q)))));
 }
 function htmlIngressos(l) {
   const f = ingF(), lf = ingFiltrar(l);
@@ -1234,19 +1240,23 @@ function htmlIngressos(l) {
   const porMes = meses.map((m) => { const a = l.filter((g) => String(g.data).slice(0, 7) === m); const c1 = a.filter((g) => g.conta === '04.001781.0-4'), c2 = a.filter((g) => g.conta === '04.263706.0-3');
     return '<tr class="clic' + (f.mes === m ? ' cg-mud' : '') + '" data-ingm="' + m + '"><td class="nw"><b>' + esc(cgComp(m)) + '</b></td><td class="nw num-r">' + c1.length + ' · ' + fmoeda(soma(c1, 'valor')) + '</td><td class="nw num-r">' + c2.length + ' · ' + fmoeda(soma(c2, 'valor')) + '</td><td class="nw num-r"><b>' + fmoeda(soma(a, 'valor')) + '</b></td><td class="nw num-r">' + a.filter((g) => g.situacao === 'A_IDENTIFICAR').length + '</td></tr>'; }).join('');
   const sel = (nome, opts, v) => '<select class="inp" data-ingf="' + nome + '" style="height:36px;width:auto">' + opts.map((o) => '<option value="' + esc(o[0]) + '"' + (o[0] === v ? ' selected' : '') + '>' + esc(o[1]) + '</option>').join('') + '</select>';
-  const linhas = lf.slice(0, 400).map((g) => '<tr class="clic" data-ing="' + esc(g.id) + '"><td class="nw">' + fdata(g.data) + '</td><td class="nw pp">' + esc(ING_CONTA[g.conta] || g.conta) + '<div class="mut">doc. ' + esc(g.documento) + '</div></td><td class="nw num-r"><b>' + fmoeda(g.valor) + '</b></td>' +
-    '<td class="pp">' + (g.processo ? esc(g.processo) : '<span class="mut">–</span>') + (g.alvara ? '<div class="mut">alvará ' + esc(g.alvara) + '</div>' : '') + (g.memorando ? '<div class="mut">memo ' + esc(g.memorando) + '</div>' : '') + (g.procurador ? '<div class="mut">' + esc(g.procurador) + (g.mes_controle ? ' · controle de ' + esc(cgComp(g.mes_controle)) : '') + '</div>' : '') + '</td>' +
-    '<td class="nw num-r">' + (g.honorarios === null || g.honorarios === undefined ? '<span class="mut">–</span>' : fmoeda(g.honorarios)) + '</td>' +
+  const procs = [...new Set(l.map((g) => g.procurador).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const mt = '<span class="mut">–</span>';
+  const linhas = lf.slice(0, 400).map((g, i) => '<tr class="clic" data-ing="' + esc(g.id) + '"><td class="nw num-r mut">' + (i + 1) + '</td><td class="nw">' + fdata(g.data) + '</td><td class="nw pp">' + esc(ING_CONTA[g.conta] || g.conta) + '<div class="mut">doc. ' + esc(g.documento) + '</div></td><td class="nw num-r"><b>' + fmoeda(g.valor) + '</b></td>' +
+    '<td class="pp nw">' + (g.processo ? esc(g.processo) : mt) + '</td><td class="pp nw">' + (g.alvara ? esc(g.alvara) : mt) + '</td><td class="pp nw">' + (g.memorando ? esc(g.memorando) : mt) + '</td>' +
+    '<td class="pp">' + (g.procurador ? '<b>' + esc(g.procurador) + '</b>' + (g.mes_controle ? '<div class="mut">controle de ' + esc(cgComp(g.mes_controle)) + '</div>' : '') : mt) + '</td>' +
+    '<td class="nw num-r">' + (g.honorarios === null || g.honorarios === undefined ? mt : fmoeda(g.honorarios)) + '</td>' +
     '<td class="nw"><span class="chip ' + (ING_COR[g.situacao] || '') + '">' + esc(ING_SIT[g.situacao] || g.situacao) + '</span>' + (g.mes_rateio ? '<div class="pp mut">rateio ' + esc(cgComp(g.mes_rateio)) + '</div>' : '') + '</td></tr>').join('');
+  const th = (k, rot, cls) => '<th class="ing-ord' + (cls ? ' ' + cls : '') + (f.ord === k ? ' on' : '') + '" data-ingo="' + k + '" title="Ordenar por ' + rot.toLowerCase() + '">' + rot + ' <span class="seta">' + (f.ord === k ? (f.dir === 'asc' ? '▲' : '▼') : '↕') + '</span></th>';
   return '<div class="card aviso" style="margin-top:14px"><div class="ico">' + ic('martelo', 's') + '</div><div><b>Ingressos de processos judiciais</b><p>Créditos de alvarás judiciais ("Resgate/pagamento depósito judicial") nas contas do Banrisul 04.001781.0-4 (PMNH) e 04.263706.0-3 (Sucumbência CPC), lidos dos extratos mensais da pasta do CGHS. Clique num lançamento para informar processo, alvará, memorando e honorários.</p></div></div>' +
     '<div class="kpis cg-kpis" style="margin-top:14px">' + kpi('Ingressos', fmoeda(soma(lf, 'valor')), lf.length + ' lançamento(s)') + kpi('A identificar', fmoeda(soma(aId, 'valor')), aId.length + ' lançamento(s)') +
     kpi('Honorários identificados', fmoeda(soma(comH, 'honorarios')), comH.length + ' lançamento(s)') + kpi('Já rateados', fmoeda(soma(lf.filter((g) => g.situacao === 'RATEADO'), 'honorarios')), lf.filter((g) => g.situacao === 'RATEADO').length + ' lançamento(s)') + kpi('Aguardando memorando', fmoeda(soma(lf.filter((g) => g.situacao === 'AGUARDA_MEMO'), 'valor')), lf.filter((g) => g.situacao === 'AGUARDA_MEMO').length + ' lançamento(s)') + '</div>' +
     '<div class="sec-tit">Por mês <span class="pp mut" style="font-weight:400">clique para filtrar</span></div><div class="card tab-wrap" style="max-height:none"><table class="tab cg-tab"><thead><tr><th>Mês</th><th class="num-r">PMNH (04.001781.0-4)</th><th class="num-r">Sucumbência CPC (04.263706.0-3)</th><th class="num-r">Total</th><th class="num-r">A identificar</th></tr></thead><tbody>' + (porMes || '<tr><td colspan="5">' + vazio('Nenhum extrato lido ainda.', 'doc') + '</td></tr>') + '</tbody></table></div>' +
     '<div class="sec-tit">Lançamentos <span class="bdg">' + lf.length + '</span><button class="btn sm" data-ingcsv style="margin-left:auto">' + ic('tabela', 's') + '<span>Exportar planilha</span></button></div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px">' + sel('mes', [['', 'Todos os meses']].concat(meses.map((m) => [m, cgComp(m)])), f.mes) + sel('conta', [['', 'As duas contas'], ['04.001781.0-4', 'PMNH 04.001781.0-4'], ['04.263706.0-3', 'Sucumbência 04.263706.0-3']], f.conta) +
-    sel('sit', [['', 'Todas as situações']].concat(Object.entries(ING_SIT)), f.sit) + '<input class="inp" data-ingq placeholder="Buscar processo, documento, valor…" value="' + esc(f.q || '') + '" style="height:36px;flex:1;min-width:180px"></div>' +
-    '<div class="card tab-wrap" style="max-height:none"><table class="tab cg-tab"><thead><tr><th>Data</th><th>Conta</th><th class="num-r">Valor</th><th>Processo</th><th class="num-r">Honorários</th><th>Situação</th></tr></thead><tbody>' +
-    (linhas || '<tr><td colspan="6">' + vazio('Nenhum lançamento com esses filtros.', 'check') + '</td></tr>') + '</tbody></table></div>' +
+    sel('sit', [['', 'Todas as situações']].concat(Object.entries(ING_SIT)), f.sit) + sel('proc', [['', 'Todos os procuradores']].concat(procs.map((p) => [p, p]), [['__sem', '(sem procurador)']]), f.proc) + '<input class="inp" data-ingq placeholder="Buscar processo, alvará, memorando, valor…" value="' + esc(f.q || '') + '" style="height:36px;flex:1;min-width:180px"></div>' +
+    '<div class="card tab-wrap" style="max-height:none"><table class="tab cg-tab"><thead><tr><th class="num-r">#</th>' + th('data', 'Data') + '<th>Conta</th>' + th('valor', 'Valor', 'num-r') + '<th>Processo</th><th>Alvará</th><th>Memorando</th><th>Procurador</th>' + th('honorarios', 'Honorários', 'num-r') + th('situacao', 'Situação') + '</tr></thead><tbody>' +
+    (linhas || '<tr><td colspan="10">' + vazio('Nenhum lançamento com esses filtros.', 'check') + '</td></tr>') + '</tbody></table></div>' +
     (lf.length > 400 ? '<p class="pp mut" style="margin:8px 2px">Mostrando 400 de ' + lf.length + '. Use os filtros ou exporte a planilha.</p>' : '');
 }
 function ingEditar(g) {
@@ -1282,6 +1292,7 @@ function ingLigar() {
   $$('[data-ingf]').forEach((s) => { s.onchange = () => { ingF()[s.dataset.ingf] = s.value; salvarF(); }; });
   const q = $('[data-ingq]'); if (q) { let t; q.oninput = () => { clearTimeout(t); t = setTimeout(() => { ingF().q = q.value; LS.set('ingF', S.ingF); const p = q.selectionStart; VIEWS.cghs(); const n = $('[data-ingq]'); if (n) { n.focus(); n.setSelectionRange(p, p); } }, 350); }; }
   $$('[data-ingm]').forEach((tr) => { tr.onclick = () => { ingF().mes = ingF().mes === tr.dataset.ingm ? '' : tr.dataset.ingm; salvarF(); }; });
+  $$('[data-ingo]').forEach((h) => { h.onclick = () => { const f = ingF(), k = h.dataset.ingo; if (f.ord === k) f.dir = f.dir === 'asc' ? 'desc' : 'asc'; else { f.ord = k; f.dir = k === 'situacao' ? 'asc' : 'desc'; } salvarF(); }; });
   $$('[data-ing]').forEach((tr) => { tr.onclick = () => ingEditar(S.cgIng.find((x) => x.id === tr.dataset.ing)); });
   const c = $('[data-ingcsv]'); if (c) c.onclick = () => ingCsv(ingFiltrar(S.cgIng));
 }
