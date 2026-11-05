@@ -540,7 +540,7 @@ VIEWS.mais = function () {
     '<a class="item clic" href="#/antigos">' + ic('arquivo') + '<div class="mid"><div class="t">Prazos antigos</div><div class="d">Prazos cujo dia do vencimento já terminou</div></div></a>' +
     '<a class="item clic" href="#/audiencias">' + ic('agenda') + '<div class="mid"><div class="t">Audiências e perícias</div><div class="d">Audiências, perícias e sessões designadas</div></div></a>' +
     '<a class="item clic" href="#/cumprimentos">' + ic('martelo') + '<div class="mid"><div class="t">Cumprimentos de sentença</div><div class="d">Honorários sucumbenciais a executar pelo Município</div></div></a>' +
-    '<a class="item clic" href="#/cghs">' + ic('cghs') + '<div class="mid"><div class="t">CGHS – Honorários</div><div class="d">Arquivos mensais dos honorários e controle online</div></div></a>' +
+    '<a class="item clic" href="#/cghs">' + ic('cghs') + '<div class="mid"><div class="t">CGHS – Honorários</div><div class="d">Rateio mensal, comparativo e arquivos dos honorários</div></div></a>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
     '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>' +
     '<div class="sec-tit">Acesso rápido</div><div class="card"><div class="lista">' + LINKS.map((l) => '<a class="item clic" href="' + l.url + '" target="_blank" rel="noopener">' + ic(l.ic) + '<div class="mid"><div class="t">' + esc(l.t) + '</div><div class="d">' + esc(l.d) + '</div></div>' + ic('externo', 's') + '</a>').join('') + '</div></div>';
@@ -998,17 +998,241 @@ function editarCghsMes(m) {
   modal({ titulo: m.mes ? 'Honorários de ' + mesNome(m.mes) : 'Lançar mês', corpo, botoes: bts });
 }
 document.head.insertAdjacentHTML('beforeend', '<style>.num-r{text-align:right}.cg-tab td,.cg-tab th{vertical-align:top}.cg-bar{height:5px;background:var(--surface-2);border-radius:9px;margin-top:5px;min-width:120px;overflow:hidden}.cg-bar span{display:block;height:100%;background:var(--gold);border-radius:9px}.c-ok{color:var(--ok);font-weight:700}.c-bad{color:var(--bad);font-weight:700}.cg-seg{margin:14px 0 0}</style>');
+// ---------- CGHS – Rateio mensal (Lei 3.487/2023) ----------
+// Quota: ativos/PG pelo tempo de exercício (art. 2º, I): <1 ano 50%, 1–2 anos 75%, 2+ 100%; aposentados (art. 2º, II): <1 ano 100%, 80, 60, 40, 20%, após 5 anos 0.
+// Faixa = tempo completo no último dia do mês de competência; dias proporcionais na entrada/saída (art. 2º, §§1º e 5º).
+// Cota cheia = total do Livro Razão ÷ soma (quota × fração de dias); diferença de centavos ajustada no último beneficiário.
+const CG_MC = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const cgR2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+const cgNum = (s) => +String(s).replace(/[()\s]/g, '').replace(/\./g, '').replace(',', '.');
+const cgAnos = (ini, fim) => { const [a1, m1, d1] = ini.split('-').map(Number), [a2, m2, d2] = fim.split('-').map(Number); let n = a2 - a1; if (m2 < m1 || (m2 === m1 && d2 < d1)) n--; return n; };
+const cgMesMais = (m, n) => { let [a, x] = m.split('-').map(Number); x += n; while (x > 12) { x -= 12; a++; } while (x < 1) { x += 12; a--; } return a + '-' + String(x).padStart(2, '0'); };
+const cgFimMes = (m) => { const [a, x] = m.split('-').map(Number); return m + '-' + String(new Date(Date.UTC(a, x, 0)).getUTCDate()).padStart(2, '0'); };
+const cgDiasMes = (m) => +cgFimMes(m).slice(8);
+const cgPct = (q) => (q * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%';
+const CG_QUOTAS = [1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.2, 0];
+function cgRegra(p, comp) {
+  const c0 = comp + '-01', c1 = cgFimMes(comp), dm = cgDiasMes(comp);
+  const ini = p.exercicio && p.exercicio > c0 ? p.exercicio : c0;
+  const fim = p.saida && p.saida < c1 ? p.saida : c1;
+  if ((p.exercicio && p.exercicio > c1) || (p.saida && p.saida < c0)) return { situacao: 'Fora do período', quota: 0, dias: 0, regra: p.saida && p.saida < c0 ? 'Saiu em ' + fdata(p.saida) : 'Exercício a partir de ' + fdata(p.exercicio) };
+  const dias = Math.max(0, Math.round((dt(fim) - dt(ini)) / 864e5) + 1);
+  let quota, regra, situacao;
+  if (p.aposentadoria && p.aposentadoria <= c1) {
+    const n = cgAnos(p.aposentadoria, c1); quota = [1, 0.8, 0.6, 0.4, 0.2][n] ?? 0; situacao = 'Aposentado';
+    regra = 'Aposentadoria em ' + fdata(p.aposentadoria) + ' · ' + n + (n === 1 ? ' ano completo' : ' anos completos') + (quota ? '' : ' (direito encerrado após 5 anos)');
+  } else if (p.exercicio) {
+    const n = cgAnos(p.exercicio, c1); quota = n < 1 ? 0.5 : n < 2 ? 0.75 : 1; situacao = 'Ativo';
+    regra = 'Exercício em ' + fdata(p.exercicio) + ' · ' + n + (n === 1 ? ' ano completo' : ' anos completos');
+  } else { quota = 1; situacao = 'Ativo'; regra = 'Mais de 2 anos de exercício'; }
+  if (dias < dm) regra += ' · ' + dias + ' de ' + dm + ' dias no mês';
+  return { situacao, quota, dias, regra };
+}
+// Monta o rateio a partir da lista (com ajustes manuais de quota/dias em r.itens) e do total.
+function cgCalcular(r) {
+  const dm = cgDiasMes(r.competencia);
+  r.itens.forEach((i) => { i.fator = Math.min(1, Math.max(0, (+i.dias || 0) / dm)); i.peso = +(i.quota * i.fator).toFixed(6); });
+  r.soma_quotas = +r.itens.reduce((s, i) => s + i.peso, 0).toFixed(6);
+  r.cota_cheia = r.soma_quotas ? r.total / r.soma_quotas : 0;
+  r.itens.forEach((i) => { i.valor = cgR2(i.peso * r.cota_cheia); i.ajuste = 0; });
+  const dif = cgR2(r.total - r.itens.reduce((s, i) => s + i.valor, 0));
+  const ult = r.itens.filter((i) => i.peso > 0).pop();
+  if (ult && dif) { ult.valor = cgR2(ult.valor + dif); ult.ajuste = dif; }
+  return r;
+}
+function cgNovoRateio(comp, total, contas, arquivo, periodo) {
+  const itens = (S.cgRat.procuradores || []).map((p) => { const g = cgRegra(p, comp); return { id: p.id, nome: p.nome, matricula: p.matricula, contrato: p.contrato, situacao: g.situacao, regra: g.regra, quota: g.quota, quota_lei: g.quota, dias: g.dias, dias_lei: g.dias }; })
+    .filter((i) => i.situacao !== 'Fora do período');
+  return cgCalcular({ competencia: comp, mes: cgMesMais(comp, 1), total: cgR2(total), contas: contas || [], arquivo: arquivo || null, periodo_ini: periodo && periodo[0], periodo_fim: periodo && periodo[1], itens });
+}
+// Leitura do Livro Razão (PDF do Atende.Net) no próprio navegador.
+let cgPdfJs = null;
+function cgCarregarPdfJs() {
+  if (cgPdfJs) return cgPdfJs;
+  cgPdfJs = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; res(window.pdfjsLib); };
+    s.onerror = () => { cgPdfJs = null; rej(new Error('Não foi possível carregar o leitor de PDF.')); };
+    document.head.appendChild(s);
+  });
+  return cgPdfJs;
+}
+async function cgLerRazao(file) {
+  const pdfjs = await cgCarregarPdfJs();
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  let t = '';
+  for (let i = 1; i <= doc.numPages; i++) { const c = await (await doc.getPage(i)).getTextContent(); t += c.items.map((x) => x.str).join(' ') + ' '; }
+  t = t.replace(/\s+/g, ' ');
+  const per = t.match(/Per[ií]odo:\s*(\d{2})\/(\d{2})\/(\d{4})\s*at[ée]\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+  if (!/Livro Raz[ãa]o/i.test(t) || !per) throw new Error('O arquivo não parece ser o Livro Razão (não encontrei o período).');
+  const periodo = [per[3] + '-' + per[2] + '-' + per[1], per[6] + '-' + per[5] + '-' + per[4]];
+  const re = /(\d{20})\s*\((\d+)\)\s*-\s*(.+?)\s*Saldo Anterior:\s*(\(?[\d.]+,\d{2}\)?)|Total da Conta:\s*\(?([\d.]+,\d{2})\)?\s+\(?([\d.]+,\d{2})\)?\s+\(?([\d.]+,\d{2})\)?/g;
+  const contas = {}; let cur = null, m;
+  while ((m = re.exec(t))) {
+    if (m[1]) { cur = m[2]; if (!contas[cur]) contas[cur] = { codigo: m[2], conta: m[1], nome: m[3].trim(), saldo_ant: cgNum(m[4]), debito: null, credito: null, saldo: null }; }
+    else if (cur && contas[cur].credito === null) { Object.assign(contas[cur], { debito: cgNum(m[5]), credito: cgNum(m[6]), saldo: cgNum(m[7]) }); }
+  }
+  const l = Object.values(contas).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  if (!l.length || l.some((c) => c.credito === null)) throw new Error('Não consegui ler o "Total da Conta" de todas as contas do Livro Razão.');
+  l.forEach((c) => { c.ok = Math.abs(cgR2(c.saldo - c.saldo_ant) - cgR2(c.credito - c.debito)) < 0.01; });
+  return { periodo, contas: l, total: cgR2(l.reduce((s, c) => s + c.credito - c.debito, 0)) };
+}
+function cgCsv(r) {
+  const n = (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const q = (s) => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const ls = [['NOME', 'MATRÍCULA', 'CONTRATO', 'SITUAÇÃO', 'QUOTA', 'DIAS', 'PESO', 'VALOR'].join(';')]
+    .concat(r.itens.map((i) => [q(i.nome), q(i.matricula), q(i.contrato), q(i.situacao), cgPct(i.quota), i.dias ?? '', String(i.peso).replace('.', ','), n(i.valor)].join(';')))
+    .concat(['', ['TOTAL', '', '', '', '', '', String(r.soma_quotas).replace('.', ','), n(r.total)].join(';'), ['COTA CHEIA', '', '', '', '', '', '', n(r.cota_cheia)].join(';')]);
+  const [a, x] = r.competencia.split('-');
+  const nome = 'Rateio_' + CG_MC[+cgMesMais(r.competencia, 1).slice(5) - 1] + '_Comp_' + CG_MC[+x - 1].slice(0, 3) + '_' + a + '.csv';
+  const url = URL.createObjectURL(new Blob(['﻿' + ls.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  const el = document.createElement('a'); el.href = url; el.download = nome; document.body.appendChild(el); el.click(); el.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function cgTabela(r, editar) {
+  const opc = (q) => CG_QUOTAS.map((v) => '<option value="' + v + '"' + (v === +q ? ' selected' : '') + '>' + cgPct(v) + '</option>').join('');
+  const dm = cgDiasMes(r.competencia);
+  return '<div class="card tab-wrap" style="max-height:none"><table class="tab cg-tab"><thead><tr><th>#</th><th>Procurador</th><th>Regra aplicada</th><th class="num-r">Quota</th><th class="num-r">Dias</th><th class="num-r">Valor</th></tr></thead><tbody>' +
+    r.itens.map((i, k) => {
+      const mud = editar && (i.quota !== i.quota_lei || i.dias !== i.dias_lei);
+      return '<tr' + (mud ? ' class="cg-mud"' : '') + '><td class="mut">' + (k + 1) + '</td><td><b>' + esc(i.nome) + '</b><div class="pp mut">mat. ' + esc(i.matricula || '–') + ' · contrato ' + esc(i.contrato || '–') + (i.situacao === 'Aposentado' ? ' · aposentado' : '') + '</div></td>' +
+        '<td class="pp">' + esc(i.regra || '') + (mud ? '<div class="c-bad">ajustado manualmente</div>' : '') + (i.ajuste ? '<div class="mut">ajuste de centavos: ' + fmoeda(i.ajuste) + '</div>' : '') + '</td>' +
+        '<td class="nw num-r">' + (editar ? '<select class="inp cg-q" data-k="' + k + '">' + opc(i.quota) + '</select>' : cgPct(i.quota)) + '</td>' +
+        '<td class="nw num-r">' + (editar ? '<input class="inp cg-d" data-k="' + k + '" type="number" min="0" max="' + dm + '" value="' + i.dias + '">' : (i.dias ?? Math.round((+i.fator || 0) * dm))) + '</td>' +
+        '<td class="nw num-r"><b>' + fmoeda(i.valor) + '</b></td></tr>';
+    }).join('') +
+    '</tbody><tfoot><tr><td></td><td><b>Total</b> · ' + r.itens.filter((i) => i.peso > 0).length + ' beneficiários</td><td class="pp mut">soma das quotas ' + String(r.soma_quotas).replace('.', ',') + '</td><td></td><td></td><td class="nw num-r"><b>' + fmoeda(r.itens.reduce((s, i) => s + i.valor, 0)) + '</b></td></tr></tfoot></table></div>';
+}
+function cgContas(r) {
+  return '<div class="card tab-wrap" style="max-height:none"><table class="tab cg-tab"><thead><tr><th>Conta</th><th class="num-r">Débito</th><th class="num-r">Crédito</th><th class="num-r">Líquido</th></tr></thead><tbody>' +
+    (r.contas || []).map((c) => '<tr><td><b>' + esc(c.codigo) + '</b> <span class="pp mut">' + esc(c.nome || '') + '</span>' + (c.ok === false ? '<div class="c-bad pp">saldo não confere com o movimento</div>' : '') + '</td><td class="nw num-r">' + fmoeda(c.debito) + '</td><td class="nw num-r">' + fmoeda(c.credito) + '</td><td class="nw num-r"><b>' + fmoeda(cgR2(c.credito - c.debito)) + '</b></td></tr>').join('') +
+    '</tbody><tfoot><tr><td><b>Total a ratear</b></td><td></td><td></td><td class="nw num-r"><b>' + fmoeda(r.total) + '</b></td></tr></tfoot></table></div>';
+}
+const cgComp = (m) => { const [a, x] = String(m).split('-'); return CG_MC[+x - 1] + '/' + a; };
+function cgKpis(r) {
+  const kpi = (rot, val, sub) => '<div class="card kpi"><div class="rot">' + rot + '</div><div class="val" style="font-size:20px">' + val + '</div><div class="sub">' + sub + '</div></div>';
+  const ben = r.itens.filter((i) => i.peso > 0);
+  return '<div class="kpis cg-kpis">' + kpi('Total a ratear', fmoeda(r.total), 'Livro Razão de ' + cgComp(r.competencia)) + kpi('Cota cheia (100%)', fmoeda(cgR2(r.cota_cheia)), 'total ÷ ' + String(r.soma_quotas).replace('.', ',')) +
+    kpi('Beneficiários', ben.length, (r.itens.length - ben.length) ? (r.itens.length - ben.length) + ' sem quota' : 'todos com quota') + kpi('Pagamento', cgComp(r.mes), 'até o 5º dia útil (art. 8º)') + '</div>';
+}
+function htmlCghsRateio(d) {
+  const rs = d.rateios || [], pr = d.procuradores || [], r = S.cgRascunho;
+  let h = '<div class="card aviso" style="margin-top:14px"><div class="ico">' + ic('cghs', 's') + '</div><div><b>Rateio mensal dos honorários</b><p>Envie o Livro Razão do mês (PDF do Atende.Net). O app lê o total das contas de sucumbência, aplica as quotas da Lei 3.487/2023 a cada procurador e divide o valor. Confira, ajuste se preciso e salve: o mês entra também no comparativo.</p>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><label class="btn pri sm" style="cursor:pointer">' + ic('doc', 's') + '<span>Enviar Livro Razão (PDF)</span><input type="file" accept="application/pdf,.pdf" data-cgpdf hidden></label>' +
+    '<button class="btn sm" data-cgproc>' + ic('lista', 's') + '<span>Procuradores (' + pr.length + ')</span></button>' +
+    '<button class="btn sm fant" data-cgman>' + ic('editar', 's') + '<span>Informar total manualmente</span></button></div></div></div>';
+  if (r) {
+    const ja = rs.find((x) => x.mes === r.mes);
+    h += '<div class="sec-tit">Conferência · competência ' + esc(cgComp(r.competencia)) + (r.arquivo ? ' <span class="chip">' + esc(r.arquivo) + '</span>' : '') + '</div>' +
+      (ja ? '<div class="card aviso" style="margin-bottom:12px"><div class="ico">' + ic('alerta', 's') + '</div><div><p>Já existe rateio salvo para o pagamento de ' + esc(cgComp(r.mes)) + '. Salvar vai substituí-lo.</p></div></div>' : '') +
+      cgKpis(r) + (r.contas && r.contas.length ? '<div class="sec-tit">Contas do Livro Razão</div>' + cgContas(r) : '') +
+      '<div class="sec-tit">Rateio por procurador <span class="pp mut" style="font-weight:400">quota e dias podem ser ajustados</span></div>' + cgTabela(r, true) +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin:12px 0"><button class="btn sm fant" data-cgdesc>' + ic('x', 's') + '<span>Descartar</span></button><button class="btn sm" data-cgcsvr>' + ic('tabela', 's') + '<span>Exportar planilha</span></button><button class="btn sm pri" data-cgsalvar>' + ic('check', 's') + '<span>Salvar rateio de ' + esc(cgComp(r.mes)) + '</span></button></div>';
+  }
+  h += '<div class="sec-tit">Rateios salvos <span class="bdg">' + rs.length + '</span></div><div class="card tab-wrap" style="max-height:none"><table class="tab cg-tab"><thead><tr><th>Pagamento</th><th>Competência</th><th class="num-r">Total</th><th class="num-r">Cota cheia</th><th class="num-r">Beneficiários</th></tr></thead><tbody>' +
+    (rs.map((x) => '<tr class="clic" data-cgr="' + esc(x.mes) + '"><td class="nw"><b>' + esc(cgComp(x.mes)) + '</b></td><td class="nw">' + esc(cgComp(x.competencia)) + '</td><td class="nw num-r"><b>' + fmoeda(x.total) + '</b></td><td class="nw num-r">' + fmoeda(cgR2(x.cota_cheia)) + '</td><td class="nw num-r">' + (x.itens || []).filter((i) => i.peso > 0).length + '</td></tr>').join('') ||
+      '<tr><td colspan="5">' + vazio('Nenhum rateio salvo ainda. Envie o Livro Razão do mês.', 'cghs') + '</td></tr>') + '</tbody></table></div>';
+  return h;
+}
+function cgVerRateio(x) {
+  const corpo = cgKpis(x) + (x.contas && x.contas.length ? '<div class="sec-tit">Contas do Livro Razão</div>' + cgContas(x) : '') + '<div class="sec-tit">Rateio por procurador</div>' + cgTabela(x, false) +
+    '<p class="pp mut" style="margin:10px 2px">' + (x.arquivo ? 'Arquivo: ' + esc(x.arquivo) + ' · ' : '') + 'salvo por ' + esc(x.atualizado_por || '–') + ' em ' + esc(new Date(x.atualizado_em).toLocaleString('pt-BR')) + '</p>';
+  modal({ titulo: 'Rateio de ' + cgComp(x.mes) + ' (comp. ' + cgComp(x.competencia) + ')', largo: true, corpo, botoes: [
+    { txt: 'Excluir', ic: 'lixo', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Excluir rateio', 'Excluir o rateio de ' + cgComp(x.mes) + '? O comparativo mensal não é alterado.', 'Excluir', true))) return false; await api('cghs_rateio_excluir', { mes: x.mes }); S.cgRat.rateios = S.cgRat.rateios.filter((y) => y.mes !== x.mes); VIEWS.cghs(); toast('Rateio excluído.'); } },
+    { txt: 'Exportar planilha', ic: 'tabela', acao: () => { cgCsv(x); return false; } },
+    { txt: 'Fechar', cls: 'pri', valor: null }] });
+}
+function cgEditarProc(p) {
+  p = p || {};
+  const corpo = '<form class="form" id="fcp" autocomplete="off">' +
+    '<label class="full">Nome<input class="inp" name="nome" value="' + esc(p.nome || '') + '" required></label>' +
+    '<label>Matrícula<input class="inp" name="matricula" value="' + esc(p.matricula || '') + '"></label>' +
+    '<label>Contrato<input class="inp" name="contrato" value="' + esc(p.contrato || '1') + '"></label>' +
+    '<label>Início do exercício<input class="inp" type="date" name="exercicio" value="' + esc(p.exercicio || '') + '"><span class="pp mut">em branco = mais de 2 anos (100%)</span></label>' +
+    '<label>Aposentadoria<input class="inp" type="date" name="aposentadoria" value="' + esc(p.aposentadoria || '') + '"></label>' +
+    '<label>Saída (exoneração, demissão, fim do PG)<input class="inp" type="date" name="saida" value="' + esc(p.saida || '') + '"></label>' +
+    '<label>Ordem na lista<input class="inp" type="number" name="ordem" value="' + esc(p.ordem ?? '') + '"></label>' +
+    '<label class="full">Observações<textarea class="inp" name="obs" style="min-height:60px">' + esc(p.obs || '') + '</textarea></label></form>';
+  const bts = [{ txt: 'Cancelar', valor: null }, { txt: 'Salvar', cls: 'pri', ic: 'check', acao: async (v) => {
+    const d = Object.fromEntries(new FormData($('#fcp', v)).entries()); d.id = p.id || null;
+    if (!String(d.nome || '').trim()) { toast('Informe o nome.', true); return false; }
+    const r = await api('cghs_proc_salvar', { procurador: d });
+    S.cgRat.procuradores = S.cgRat.procuradores.filter((x) => x.id !== r.id).concat([r]).sort((a, b) => (a.ordem ?? 1e9) - (b.ordem ?? 1e9) || a.nome.localeCompare(b.nome));
+    toast('Procurador salvo.'); setTimeout(cgListaProc, 50);
+  } }];
+  if (p.id) bts.unshift({ txt: 'Excluir', ic: 'lixo', cls: 'fant perigo esq', acao: async () => { if (!(await confirmar('Excluir procurador', 'Excluir ' + p.nome + ' da lista do rateio? Os rateios já salvos não mudam.', 'Excluir', true))) return false; await api('cghs_proc_excluir', { id: p.id }); S.cgRat.procuradores = S.cgRat.procuradores.filter((x) => x.id !== p.id); toast('Procurador excluído.'); setTimeout(cgListaProc, 50); } });
+  modal({ titulo: p.id ? p.nome : 'Novo procurador', corpo, botoes: bts });
+}
+function cgListaProc() {
+  const comp = S.cgRascunho ? S.cgRascunho.competencia : cgMesMais(hoje().slice(0, 7), -1);
+  const corpo = '<p class="pp mut" style="margin:0 0 10px">Quota calculada para a competência ' + esc(cgComp(comp)) + '. Clique para editar datas de exercício, aposentadoria ou saída.</p><div class="lista">' +
+    S.cgRat.procuradores.map((p) => { const g = cgRegra(p, comp); return '<a class="item clic" data-cgp="' + esc(p.id) + '"><div class="mid"><div class="t">' + esc(p.nome) + '</div><div class="d">mat. ' + esc(p.matricula || '–') + ' · ' + esc(g.regra) + '</div></div><span class="chip' + (g.quota === 1 ? '' : ' ouro') + '">' + cgPct(g.quota) + '</span></a>'; }).join('') + '</div>';
+  const v = modal({ titulo: 'Procuradores do rateio (' + S.cgRat.procuradores.length + ')', largo: true, corpo, botoes: [{ txt: '+ Novo procurador', cls: 'esq', acao: () => { setTimeout(() => cgEditarProc(), 50); } }, { txt: 'Fechar', cls: 'pri', valor: null }] });
+  setTimeout(() => $$('[data-cgp]').forEach((a) => { a.onclick = () => { const p = S.cgRat.procuradores.find((x) => x.id === a.dataset.cgp); const f = $('.veu [data-f]'); if (f) f.click(); setTimeout(() => cgEditarProc(p), 60); }; }), 30);
+  v.then(() => { if (location.hash.startsWith('#/cghs')) VIEWS.cghs(); });
+}
+function cgTotalManual() {
+  const comp0 = cgMesMais(hoje().slice(0, 7), -1);
+  const corpo = '<form class="form" id="fcman" autocomplete="off"><label>Competência (mês do Livro Razão)<input class="inp" type="month" name="comp" value="' + comp0 + '" required></label>' +
+    '<label>Total a ratear (R$)<input class="inp" name="total" inputmode="decimal" required></label></form>';
+  modal({ titulo: 'Rateio com total informado', corpo, botoes: [{ txt: 'Cancelar', valor: null }, { txt: 'Calcular', cls: 'pri', ic: 'check', acao: (v) => {
+    const d = Object.fromEntries(new FormData($('#fcman', v)).entries()); const t = cgNum(String(d.total || '').includes(',') ? d.total : String(d.total || '').replace('.', ','));
+    if (!/^\d{4}-\d{2}$/.test(d.comp || '') || !(t > 0)) { toast('Informe competência e total.', true); return false; }
+    S.cgRascunho = cgNovoRateio(d.comp, t, [], 'total informado manualmente'); VIEWS.cghs();
+  } }] });
+}
+async function cgSalvarRascunho() {
+  const r = S.cgRascunho;
+  const sai = await api('cghs_rateio_salvar', { rateio: { mes: r.mes, competencia: r.competencia, periodo_ini: r.periodo_ini, periodo_fim: r.periodo_fim, contas: r.contas, total: r.total, soma_quotas: r.soma_quotas, cota_cheia: r.cota_cheia, arquivo: r.arquivo,
+    itens: r.itens.map((i) => ({ id: i.id, nome: i.nome, matricula: i.matricula, contrato: i.contrato, situacao: i.situacao, regra: i.regra + (i.quota !== i.quota_lei || i.dias !== i.dias_lei ? ' · ajustado manualmente' : ''), quota: i.quota, fator: i.fator, peso: i.peso, valor: i.valor, ajuste: i.ajuste })) } });
+  S.cgRat.rateios = S.cgRat.rateios.filter((x) => x.mes !== sai.mes).concat([sai]).sort((a, b) => b.mes.localeCompare(a.mes));
+  S.cghsMensal = null; S.cgRascunho = null; VIEWS.cghs(); toast('Rateio de ' + cgComp(sai.mes) + ' salvo.');
+}
+function cgLigarRateio() {
+  const f = $('[data-cgpdf]');
+  if (f) f.onchange = async () => {
+    const file = f.files && f.files[0]; if (!file) return;
+    toast('Lendo o Livro Razão…');
+    try {
+      const z = await cgLerRazao(file);
+      const comp = z.periodo[0].slice(0, 7);
+      if (z.periodo[1].slice(0, 7) !== comp) toast('Atenção: o período do Livro Razão abrange mais de um mês.', true);
+      S.cgRascunho = cgNovoRateio(comp, z.total, z.contas, file.name, z.periodo); VIEWS.cghs();
+      if (z.contas.some((c) => !c.ok)) toast('Confira as contas: o saldo de alguma não bate com o movimento.', true);
+    } catch (e) { toast(e.message || 'Não consegui ler o PDF.', true); }
+    f.value = '';
+  };
+  const on = (s, fn) => { const e = $(s); if (e) e.onclick = fn; };
+  on('[data-cgproc]', cgListaProc);
+  on('[data-cgman]', cgTotalManual);
+  on('[data-cgdesc]', () => { S.cgRascunho = null; VIEWS.cghs(); });
+  on('[data-cgcsvr]', () => cgCsv(S.cgRascunho));
+  on('[data-cgsalvar]', async (e) => { const b = e.currentTarget; b.disabled = true; try { await cgSalvarRascunho(); } catch (err) { toast(err.message, true); b.disabled = false; } });
+  $$('.cg-q').forEach((s) => { s.onchange = () => { S.cgRascunho.itens[+s.dataset.k].quota = +s.value; cgCalcular(S.cgRascunho); VIEWS.cghs(); }; });
+  $$('.cg-d').forEach((s) => { s.onchange = () => { const dm = cgDiasMes(S.cgRascunho.competencia); S.cgRascunho.itens[+s.dataset.k].dias = Math.min(dm, Math.max(0, Math.round(+s.value || 0))); cgCalcular(S.cgRascunho); VIEWS.cghs(); }; });
+  $$('[data-cgr]').forEach((tr) => { tr.onclick = () => cgVerRateio(S.cgRat.rateios.find((x) => x.mes === tr.dataset.cgr)); });
+}
+document.head.insertAdjacentHTML('beforeend', '<style>.cg-kpis{margin-bottom:4px}.cg-tab select.inp,.cg-tab input.inp{height:32px;padding:0 8px;width:auto;min-width:78px;text-align:right}.cg-tab tfoot td{border-top:2px solid var(--line-2)}.cg-mud td{background:color-mix(in srgb,var(--gold) 10%,transparent)}</style>');
 VIEWS.cghs = function () {
   titulo('CGHS');
-  if (S.cghsAba === undefined) S.cghsAba = LS.get('cghsAba', 'mensal');
-  const aba = S.cghsAba === 'arquivos' ? 'arquivos' : 'mensal';
-  const seg = '<div class="seg cg-seg" role="group" aria-label="Seção">' + [['mensal', 'Comparativo mensal', 'tabela'], ['arquivos', 'Arquivos do Drive', 'doc']].map((o) => '<button data-cga="' + o[0] + '" class="' + (aba === o[0] ? 'on' : '') + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div>';
+  if (S.cghsAba === undefined) S.cghsAba = LS.get('cghsAba', 'rateio');
+  const aba = ['arquivos', 'mensal'].includes(S.cghsAba) ? S.cghsAba : 'rateio';
+  const seg = '<div class="seg cg-seg" role="group" aria-label="Seção">' + [['rateio', 'Rateio mensal', 'cghs'], ['mensal', 'Comparativo mensal', 'tabela'], ['arquivos', 'Arquivos do Drive', 'doc']].map((o) => '<button data-cga="' + o[0] + '" class="' + (aba === o[0] ? 'on' : '') + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div>';
   const ligar = () => {
     $$('[data-cga]').forEach((b) => { b.onclick = () => { S.cghsAba = b.dataset.cga; LS.set('cghsAba', S.cghsAba); VIEWS.cghs(); }; });
     $$('[data-cm]').forEach((tr) => { tr.onclick = () => editarCghsMes((S.cghsMensal || []).find((x) => x.mes === tr.dataset.cm)); });
     const n = $('[data-cmn]'); if (n) n.onclick = () => editarCghsMes();
   };
   const carregando = '<div class="carregando"><div class="spin"></div></div>';
+  if (aba === 'rateio') {
+    $('#conteudo').innerHTML = seg + (S.cgRat ? htmlCghsRateio(S.cgRat) : carregando); ligar(); if (S.cgRat) cgLigarRateio();
+    if (!S.cgRat && !VIEWS.cghs.lendoR) {
+      VIEWS.cghs.lendoR = true;
+      api('cghs_rateio').then((d) => { S.cgRat = { procuradores: (d && d.procuradores) || [], rateios: (d && d.rateios) || [] }; if (location.hash.startsWith('#/cghs')) VIEWS.cghs(); })
+        .catch((e) => { if (location.hash.startsWith('#/cghs')) { $('#conteudo').innerHTML = seg + '<div class="card" style="margin-top:14px">' + vazio(e.message || 'Erro ao ler o rateio.', 'alerta') + '</div>'; ligar(); } })
+        .finally(() => { VIEWS.cghs.lendoR = false; });
+    }
+    return;
+  }
   if (aba === 'mensal') {
     $('#conteudo').innerHTML = seg + (S.cghsMensal ? htmlCghsMensal(S.cghsMensal) : carregando); ligar();
     if (!S.cghsMensal && !VIEWS.cghs.lendoM) {
