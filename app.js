@@ -392,6 +392,12 @@ function peca(p) {
   if (!c) return 'Não informada';
   const r = PECAS.find((x) => x[0].test(c)); return r ? r[1] : 'Outras manifestações';
 }
+const PROSSEG = (p) => {
+  const n = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const pv = n(p.providencia), te = n(p.teor) + ' ' + n(p.intimacao) + ' ' + n(p.observacoes);
+  if (/^(ciencia|crp|cadastrar|contrarraz)/.test(pv)) return false;
+  return /^(manifestacao sobre o prosseguimento|pedido de prosseguimento)|requerer prosseguimento/.test(pv) || /(diga|dizer)\b[^.;]{0,30}sobre o prosseguimento|diga (o|a) exequente|manifeste-se (o|a) exequente/.test(te);
+};
 function telaPrazos(ant) {
   titulo(ant ? 'Prazos antigos' : 'Prazos');
   const h = hoje(), f = ant ? S.fa : S.f, chF = ant ? 'filtrosA' : 'filtros', rr = () => (ant ? VIEWS.antigos() : VIEWS.prazos());
@@ -402,10 +408,10 @@ function telaPrazos(ant) {
   if (ant) base.sort((a, b) => String(b.fim).localeCompare(String(a.fim)) || String(a.processo).localeCompare(String(b.processo)));
   const MARCAS = ant ? {
     semana: ['Últimos 7 dias', (p) => p.fim >= addDias(h, -7)], mes: ['Últimos 30 dias', (p) => p.fim >= addDias(h, -30)],
-    ed: ['Com ED', (p) => p.ed_cabivel], memoenv: ['Enviar memorando', (p) => p.memo_status === 'A_ENVIAR'], memorec: ['Memorando a receber', (p) => p.memo_status === 'ENVIADO']
+    prosseg: ['Diga sobre o prosseguimento', PROSSEG], ed: ['Com ED', (p) => p.ed_cabivel], memoenv: ['Enviar memorando', (p) => p.memo_status === 'A_ENVIAR'], memorec: ['Memorando a receber', (p) => p.memo_status === 'ENVIADO']
   } : {
     hoje: ['Hoje', (p) => p.fim === h], '7dias': ['7 dias', (p) => p.fim && p.fim >= h && p.fim <= addDias(h, 7)],
-    ed: ['Com ED', (p) => p.ed_cabivel], memoenv: ['Enviar memorando', (p) => p.memo_status === 'A_ENVIAR'], memorec: ['Memorando a receber', (p) => p.memo_status === 'ENVIADO']
+    prosseg: ['Diga sobre o prosseguimento', PROSSEG], ed: ['Com ED', (p) => p.ed_cabivel], memoenv: ['Enviar memorando', (p) => p.memo_status === 'A_ENVIAR'], memorec: ['Memorando a receber', (p) => p.memo_status === 'ENVIADO']
   };
   if (f.marca && !MARCAS[f.marca]) f.marca = '';
   const q = f.q.trim().toLowerCase();
