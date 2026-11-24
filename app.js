@@ -213,28 +213,32 @@ function ordenar() {
 const ROTAS = [
   { k: 'inicio', t: 'Início', ic: 'casa' },
   { k: 'prazos', t: 'Prazos', ic: 'prazo' },
-  { k: 'antigos', t: 'Prazos antigos', tc: 'Antigos', ic: 'arquivo', lat: true },
-  { k: 'ordens', t: 'Lista de Tarefas', tc: 'Tarefas', ic: 'fila' },
-  { k: 'memorandos', t: 'Memorandos', tc: 'Memos', ic: 'memo' },
-  { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' },
-  { k: 'audiencias', t: 'Audiências e perícias', tc: 'Audiências', ic: 'agenda', lat: true },
-  { k: 'cumprimentos', t: 'Cumprimentos de sentença', tc: 'Cumprimentos', ic: 'martelo', lat: true },
-  { k: 'cghs', t: 'CGHS – Honorários', ic: 'cghs', lat: true }
+  { k: 'antigos', t: 'Prazos antigos', tc: 'Antigos', tn: 'Prazos antigos', ic: 'arquivo', lat: true },
+  { k: 'ordens', t: 'Lista de Tarefas', tc: 'Tarefas', tn: 'Tarefas', ic: 'fila' },
+  { k: 'memorandos', t: 'Memorandos', tc: 'Memos', tn: 'Memorandos', ic: 'memo' },
+  { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', tn: 'Junta', ic: 'junta' },
+  { k: 'audiencias', t: 'Audiências e perícias', tc: 'Audiências', tn: 'Audiências', ic: 'agenda', lat: true },
+  { k: 'cumprimentos', t: 'Cumprimentos de sentença', tc: 'Cumprimentos', tn: 'Cumprimentos', ic: 'martelo', lat: true },
+  { k: 'cghs', t: 'CGHS – Honorários', tn: 'CGHS', ic: 'cghs', lat: true },
+  { k: 'gestao', t: 'Gestão do trabalho', tn: 'Gestão', ic: 'grafico', lat: true }
 ];
+IC.grafico = '<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 6-6"/>';
 function iniciarApp() {
   const eu = S.eu || {}, mb = MEMBRO();
   const ROT = mb ? [{ k: 'junta', t: 'Junta de Recursos', tc: 'Junta', ic: 'junta' }] : ROTAS;
   const av = fotoEu(eu) ? '<img src="' + esc(fotoEu(eu)) + '" alt="" referrerpolicy="no-referrer">' : esc((eu.nome || '?').slice(0, 1));
-  $('#app').innerHTML = '<aside class="side"><div class="marca"><div class="logo"><img src="brasao.webp" alt="Brasão de Novo Hamburgo"></div><div><b>Painel Procurador</b><span>PGM · Novo Hamburgo</span></div></div>' +
-    '<nav class="nav">' + ROT.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + r.t + '</span><span class="bdg-slot"></span></a>').join('') + '</nav>' +
-    (mb ? '' : '<div class="nav-tit">Acesso rápido</div><nav class="nav">' + LINKS.map((l) => '<a href="' + l.url + '" target="_blank" rel="noopener" title="' + esc(l.d) + '">' + ic(l.ic) + '<span>' + esc(l.t) + '</span>' + ic('externo', 's ext') + '</a>').join('') + '</nav>') +
-    '<div class="rodape"><div class="av">' + av + '</div><div style="min-width:0"><div class="n">' + esc(eu.nome || '') + '</div><div class="e">' + esc(eu.email || '') + '</div></div><button title="Sair" id="bsair">' + ic('sair') + '</button></div></aside>' +
+  const pnome = String(eu.nome || '').trim().split(/\s+/)[0] || '';
+  $('#app').innerHTML = '<header class="tn"><div class="tn-in"><a class="tn-marca" href="#/' + (mb ? 'junta' : 'inicio') + '"><img src="brasao.webp" alt="Brasão de Novo Hamburgo"><div><div class="tn-pgm">' + (mb ? 'JRF' : 'PGM') + '<i>//</i></div><div class="tn-sub">' + (mb ? 'Junta de Recursos Fiscais' : 'Novo Hamburgo') + '</div></div></a>' +
+    '<nav class="tn-nav">' + ROT.map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '" title="' + esc(r.t) + '"><span>' + (r.tn || r.t) + '</span><span class="bdg-slot"></span></a>').join('') + '</nav>' +
+    (mb ? '' : '<details class="tn-links"><summary title="Acesso rápido">' + ic('externo') + '</summary><div class="tn-dd">' + LINKS.map((l) => '<a href="' + l.url + '" target="_blank" rel="noopener">' + ic(l.ic) + '<span>' + esc(l.t) + '<small>' + esc(l.d) + '</small></span></a>').join('') + '</div></details>') +
+    '<div class="tn-eu"><div class="av">' + av + '</div><b>' + esc(pnome) + '</b><button class="tn-sair" title="Sair" id="bsair">' + ic('sair') + '</button></div></div></header>' +
     '<main class="main"><header class="topo"><h1 id="titulo"></h1><div class="acoes"><button class="btn fant ico" id="btema" title="Alternar tema claro/escuro"></button><button class="btn fant ico" id="batual" title="Atualizar">' + ic('atual') + '</button><button class="btn pri sm" id="bnovo">' + ic('mais2', 's') + '<span>Novo prazo</span></button></div></header><div class="conteudo" id="conteudo"></div></main>' +
+    '<footer class="rp"><div><b>' + (mb ? 'Junta de Recursos Fiscais' : 'Procuradoria-Geral do Município') + '</b>Município de Novo Hamburgo/RS<br>' + (mb ? 'Ambiente virtual de julgamento' : 'Painel do Procurador') + '</div><div><b>' + (mb ? 'Membro' : 'Procurador do Município') + '</b>' + esc(eu.nome || '') + (mb ? '' : '<br>OAB/RS 88.912') + '</div><div><b>Sistemas acompanhados</b>eproc TJRS 1º e 2º graus · TRF4 1º e 2º graus<br>STJ · STF · Junta de Recursos Fiscais</div></footer>' +
     (mb ? '' : '<nav class="tabbar">' + ROTAS.filter((r) => !r.lat).map((r) => '<a href="#/' + r.k + '" data-r="' + r.k + '">' + ic(r.ic) + '<span>' + (r.tc || r.t) + '</span><span class="bdg-slot"></span></a>').join('') + '<a href="#/mais" data-r="mais">' + ic('mais') + '<span>Mais</span></a></nav>') +
     (mb ? '' : '<button class="fab" id="bvoz" title="Falar com o assistente" aria-label="Falar com o assistente">' + ic('mic') + '</button>');
   $('#bsair').onclick = () => sair(false);
+  document.addEventListener('click', (e) => { const d = $('.tn-links[open]'); if (d && !d.contains(e.target)) d.removeAttribute('open'); });
   if ($('#bvoz')) $('#bvoz').onclick = () => abrirAssistente(true);
-  if (mb) { $('.marca b').textContent = 'Junta de Recursos'; $('.marca span').textContent = 'Fiscais · Novo Hamburgo'; }
   $('#batual').onclick = () => { S.cgRat = null; S.cgIng = null; S.cghsMensal = null; S.cghs = null; rota(true); };
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
@@ -401,24 +405,32 @@ function telaPrazos(ant) {
   };
   if (f.marca && !MARCAS[f.marca]) f.marca = '';
   const q = f.q.trim().toLowerCase();
-  const nats = {}; base.forEach((p) => { const n = natureza(p); nats[n] = (nats[n] || 0) + 1; });
+  const T = { trib: (p) => !f.trib || p.tribunal === f.trib, nat: (p) => !f.nat || natureza(p) === f.nat, peca: (p) => !f.peca || peca(p) === f.peca,
+    per: (p) => (!f.de || (p.fim && p.fim >= f.de)) && (!f.ate || (p.fim && p.fim <= f.ate)), marca: (p) => !f.marca || !MARCAS[f.marca] || MARCAS[f.marca][1](p),
+    q: (p) => !q || [p.processo, p.parte, p.classe, p.providencia, p.intimacao, p.orgao, p.memo_secretaria, p.observacoes].join(' ').toLowerCase().includes(q) };
+  const passa = (p, sem) => Object.keys(T).every((k) => k === sem || T[k](p));
+  const semNat = base.filter((p) => passa(p, 'nat')), semPeca = base.filter((p) => passa(p, 'peca'));
+  const nats = {}; semNat.forEach((p) => { const n = natureza(p); nats[n] = (nats[n] || 0) + 1; });
   if (f.nat && !nats[f.nat]) nats[f.nat] = 0;
-  const pcs = {}; base.forEach((p) => { const n = peca(p); pcs[n] = (pcs[n] || 0) + 1; });
+  const pcs = {}; semPeca.forEach((p) => { const n = peca(p); pcs[n] = (pcs[n] || 0) + 1; });
   if (f.peca && !pcs[f.peca]) pcs[f.peca] = 0;
-  const lista = base.filter((p) => (!f.trib || p.tribunal === f.trib) && (!f.nat || natureza(p) === f.nat) && (!f.peca || peca(p) === f.peca) && (!f.marca || !MARCAS[f.marca] || MARCAS[f.marca][1](p)) &&
-    (!q || [p.processo, p.parte, p.classe, p.providencia, p.intimacao, p.orgao, p.memo_secretaria, p.observacoes].join(' ').toLowerCase().includes(q)));
-  const cnt = (fn) => base.filter(fn).length;
+  const lista = base.filter((p) => passa(p));
+  const cnt = (fn, sem) => base.filter((p) => passa(p, sem) && fn(p)).length;
+  const filtrado = !!(f.trib || f.marca || f.nat || f.peca || f.de || f.ate || (f.q || '').trim() || f.sit !== (ant ? 'todos' : 'abertos'));
   const bt = (grp, val, txt, n) => '<button data-' + grp + '="' + val + '" class="' + (f[grp] === val ? 'on' : '') + '">' + txt + (n !== undefined ? '<span class="n">' + n + '</span>' : '') + '</button>';
   const vis = ['tabela', 'calendario'].includes(S.vis) ? S.vis : 'lista';
   $('#conteudo').classList.toggle('largo', vis !== 'lista');
   $('#conteudo').innerHTML = '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="q" placeholder="Buscar processo, parte, peça, secretaria…" value="' + esc(f.q) + '"></label>' +
     '<div class="seg" role="group" aria-label="Formato">' + [['lista', 'Lista', 'lista'], ['tabela', 'Tabela', 'tabela'], ['calendario', 'Calendário', 'hoje']].map((o) => '<button data-vis="' + o[0] + '" class="' + (vis === o[0] ? 'on' : '') + '" title="Ver em ' + o[1].toLowerCase() + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>').join('') + '</div></div>' +
     '<div class="filtros">' + bt('sit', 'abertos', ant ? 'Não cumpridos' : 'Abertos', universo.filter(aberto).length) + bt('sit', 'concluidos', 'Concluídos') + bt('sit', 'arquivados', 'Arquivados') + bt('sit', 'todos', 'Todos') +
-    '<span class="sep"></span>' + bt('trib', '', 'Todos os tribunais') + Object.keys(TRIB).map((k) => bt('trib', k, logoT(k) + TRIB_CURTO[k], cnt((p) => p.tribunal === k))).join('') + '</div>' +
-    '<div class="filtros" style="margin-top:-4px">' + bt('marca', '', 'Sem filtro') + Object.keys(MARCAS).map((k) => bt('marca', k, MARCAS[k][0], cnt(MARCAS[k][1]))).join('') +
-    '<label class="f-nat">Natureza da ação<select class="sel" id="fnat"><option value="">Todas (' + base.length + ')</option>' + Object.keys(nats).sort((a, b) => nats[b] - nats[a] || a.localeCompare(b)).map((n) => '<option value="' + esc(n) + '"' + (f.nat === n ? ' selected' : '') + '>' + esc(n) + ' (' + nats[n] + ')</option>').join('') + '</select></label>' +
-    '<label class="f-nat f-peca">Peça a elaborar<select class="sel" id="fpeca"><option value="">Todas (' + base.length + ')</option>' + Object.keys(pcs).sort((a, b) => pcs[b] - pcs[a] || a.localeCompare(b)).map((n) => '<option value="' + esc(n) + '"' + (f.peca === n ? ' selected' : '') + '>' + esc(n) + ' (' + pcs[n] + ')</option>').join('') + '</select></label></div>' +
-    (!lista.length ? '<div class="card">' + vazio(universo.length ? 'Nenhum prazo com esses filtros.' : ant ? 'Nenhum prazo antigo ainda.' : 'Nenhum prazo cadastrado ainda.', ant ? 'arquivo' : 'prazo') + '</div>'
+    '<span class="sep"></span>' + bt('trib', '', 'Todos os tribunais') + Object.keys(TRIB).map((k) => bt('trib', k, logoT(k) + TRIB_CURTO[k], cnt((p) => p.tribunal === k, 'trib'))).join('') + '</div>' +
+    '<div class="filtros" style="margin-top:-4px">' + bt('marca', '', 'Sem filtro') + Object.keys(MARCAS).map((k) => bt('marca', k, MARCAS[k][0], cnt(MARCAS[k][1], 'marca'))).join('') + '</div>' +
+    '<div class="f-linha"><label class="f-nat">Natureza da ação<select class="sel" id="fnat"><option value="">Todas (' + semNat.length + ')</option>' + Object.keys(nats).sort((a, b) => nats[b] - nats[a] || a.localeCompare(b)).map((n) => '<option value="' + esc(n) + '"' + (f.nat === n ? ' selected' : '') + '>' + esc(n) + ' (' + nats[n] + ')</option>').join('') + '</select></label>' +
+    '<label class="f-nat f-peca">Peça a elaborar<select class="sel" id="fpeca"><option value="">Todas (' + semPeca.length + ')</option>' + Object.keys(pcs).sort((a, b) => pcs[b] - pcs[a] || a.localeCompare(b)).map((n) => '<option value="' + esc(n) + '"' + (f.peca === n ? ' selected' : '') + '>' + esc(n) + ' (' + pcs[n] + ')</option>').join('') + '</select></label>' +
+    '<span class="f-per"><span class="f-rot">Prazo fatal</span> de <input type="date" class="sel" data-fper="de" value="' + esc(f.de || '') + '"> até <input type="date" class="sel" data-fper="ate" value="' + esc(f.ate || '') + '">' +
+    '<span class="f-rap">' + (ant ? [[7, 'Últimos 7 dias'], [15, '15 dias'], [30, '30 dias']] : [[3, '3 dias'], [7, '7 dias'], [15, '15 dias'], [30, '30 dias']]).map((o) => '<button type="button" class="btn sm fant" data-fdias="' + o[0] + '">' + o[1] + '</button>').join('') + '<label class="f-ndias" title="' + (ant ? 'Vencidos nos últimos N dias' : 'Vencendo nos próximos N dias') + '">' + (ant ? 'últimos' : 'próximos') + ' <input type="number" min="0" max="999" class="sel" data-fndias placeholder="N"> dias</label></span></span>' +
+    (filtrado ? '<button type="button" class="btn sm" data-flimpa>' + ic('x', 's') + '<span>Limpar filtros</span></button>' : '') + '</div>' +
+    (!lista.length ? '<div class="card">' + vazio(universo.length ? 'Nenhum prazo com esses filtros.' + (filtrado ? ' Use "Limpar filtros" para ver todos.' : '') : ant ? 'Nenhum prazo antigo ainda.' : 'Nenhum prazo cadastrado ainda.', ant ? 'arquivo' : 'prazo') + '</div>'
       : vis === 'calendario' ? calendarioPrazos(lista) : vis === 'tabela' ? tabelaPrazos(lista) : '<div class="card"><div class="lista">' + lista.map(itemPrazo).join('') + '</div></div>') +
     '<p class="pp mut" style="margin:10px 2px">' + lista.length + ' prazo(s)' + (ant ? ' · prazos cujo dia do vencimento já terminou' : ' · os vencidos passam automaticamente para <a href="#/antigos">Prazos antigos</a>') + '</p>';
   $$('[data-vis]').forEach((b) => { b.onclick = () => { S.vis = b.dataset.vis; LS.set('vis', S.vis); rr(); }; });
@@ -428,6 +440,11 @@ function telaPrazos(ant) {
   $$('[data-sit],[data-trib],[data-marca]').forEach((b) => { b.onclick = () => { const g = b.dataset.sit !== undefined ? 'sit' : b.dataset.trib !== undefined ? 'trib' : 'marca'; f[g] = b.dataset[g]; LS.set(chF, f); rr(); }; });
   $('#fnat').onchange = (e) => { f.nat = e.target.value; LS.set(chF, f); rr(); };
   $('#fpeca').onchange = (e) => { f.peca = e.target.value; LS.set(chF, f); rr(); };
+  $$('[data-fper]').forEach((i) => { i.onchange = () => { f[i.dataset.fper] = i.value || ''; if (f.de && f.ate && f.de > f.ate) { const t = f.de; f.de = f.ate; f.ate = t; } LS.set(chF, f); rr(); }; });
+  const porDias = (n) => { n = Math.max(0, Math.min(999, Math.round(+n || 0))); if (ant) { f.de = addDias(h, -n); f.ate = addDias(h, -1); } else { f.de = h; f.ate = addDias(h, n); } LS.set(chF, f); rr(); };
+  $$('[data-fdias]').forEach((b) => { b.onclick = () => porDias(b.dataset.fdias); });
+  const nd = $('[data-fndias]'); if (nd) nd.onkeydown = (e) => { if (e.key === 'Enter' && nd.value !== '') porDias(nd.value); }, nd.onchange = () => { if (nd.value !== '') porDias(nd.value); };
+  const lp = $('[data-flimpa]'); if (lp) lp.onclick = () => { Object.assign(f, { sit: ant ? 'todos' : 'abertos', trib: '', marca: '', nat: '', peca: '', de: '', ate: '', q: '' }); LS.set(chF, f); rr(); };
   const qi = $('#q'); let tm;
   qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { f.q = qi.value; LS.set(chF, f); const pos = qi.selectionStart; rr(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); }, 250); };
   ligarListas($('#conteudo'));
@@ -469,7 +486,7 @@ function calendarioPrazos(lista) {
 }
 async function copiarPrompt(p) { try { await navigator.clipboard.writeText(p.prompt_minutaia || ''); toast('Prompt copiado.'); } catch (e) { toast('Não foi possível copiar.', true); } }
 document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-cpp]'); if (!b) return; e.stopPropagation(); e.preventDefault(); const p = ((S.dados && S.dados.prazos) || []).find((x) => x.id === b.dataset.cpp); if (p) copiarPrompt(p); }, true);
-document.head.insertAdjacentHTML('beforeend', '<style>.f-nat{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);margin-left:auto}.f-nat .sel{width:auto;min-width:200px;padding:5px 8px;font-size:13px}.f-nat.f-peca{margin-left:10px}@media(max-width:760px){.f-nat,.f-nat.f-peca{margin-left:0;width:100%}.f-nat .sel{flex:1;min-width:0}}</style>');
+document.head.insertAdjacentHTML('beforeend', '<style>.f-linha{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:-4px 0 12px}.f-nat{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mut)}.f-nat .sel{width:auto;min-width:200px;max-width:320px;padding:5px 8px;font-size:13px}.f-per{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--mut)}.f-per .f-rot{font-weight:600}.f-per input[type=date].sel{width:auto;padding:4px 6px;font-size:13px}.f-rap{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}.f-rap .btn.sm{height:28px;padding:0 9px;font-size:12px}.f-ndias{display:inline-flex;align-items:center;gap:4px}.f-ndias input.sel{width:62px;padding:4px 6px;font-size:13px}@media(min-width:761px){.filtros{flex-wrap:wrap;overflow:visible}}@media(max-width:760px){.f-nat,.f-per{width:100%}.f-nat .sel{flex:1;min-width:0;max-width:none}}</style>');
 document.head.insertAdjacentHTML('beforeend', '<style>.cal-m{display:inline-flex;align-items:center;gap:3px;width:max-content;max-width:100%;font-size:11px;font-weight:700;padding:1px 6px;border-radius:7px;line-height:1.5}.cal-m svg.i{width:13px;height:13px}.cal-m.pend{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad)}.cal-m.env{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok)}@media(max-width:760px){.cal-m{padding:0 3px;font-size:10px}.cal-m .cal-ms{display:none}}</style>');
 document.head.insertAdjacentHTML('beforeend', '<style>.pr-cel{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:1.35;min-width:240px;max-width:380px}.pr-cp{margin-top:4px}.pr-li{font-size:12px;line-height:1.35;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.pr-det{white-space:pre-wrap;font-size:13px;line-height:1.45;margin-bottom:6px}</style>');
 const COLS = [
@@ -574,6 +591,7 @@ VIEWS.mais = function () {
     '<a class="item clic" href="#/antigos">' + ic('arquivo') + '<div class="mid"><div class="t">Prazos antigos</div><div class="d">Prazos cujo dia do vencimento já terminou</div></div></a>' +
     '<a class="item clic" href="#/audiencias">' + ic('agenda') + '<div class="mid"><div class="t">Audiências e perícias</div><div class="d">Audiências, perícias e sessões designadas</div></div></a>' +
     '<a class="item clic" href="#/cumprimentos">' + ic('martelo') + '<div class="mid"><div class="t">Cumprimentos de sentença</div><div class="d">Honorários sucumbenciais a executar pelo Município</div></div></a>' +
+    '<a class="item clic" href="#/gestao">' + ic('grafico') + '<div class="mid"><div class="t">Gestão do trabalho</div><div class="d">Indicadores, metas, gráficos e honorários</div></div></a>' +
     '<a class="item clic" href="#/cghs">' + ic('cghs') + '<div class="mid"><div class="t">CGHS – Honorários</div><div class="d">Rateio mensal, comparativo e arquivos dos honorários</div></div></a>' +
     '<div class="item clic" id="matual">' + ic('atual') + '<div class="mid"><div class="t">Atualizar dados</div></div></div>' +
     '<div class="item clic" id="msair" style="color:var(--bad)">' + ic('sair') + '<div class="mid"><div class="t">Sair</div></div></div></div></div>' +
@@ -592,6 +610,142 @@ function aplicarTema(t) {
 }
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!document.documentElement.dataset.tema) aplicarTema('auto'); }); } catch (e) {}
 
+// ---------- Gestão do trabalho (indicadores, metas e gráficos) ----------
+const GEST_PER = { mes: 'Este mês', tri: 'Últimos 3 meses', ano: 'Este ano', '12m': 'Últimos 12 meses' };
+const METAS_PAD = { pecas: 40, crp: 30, vencidos: 0, memos: 5, cumpr: 95 };
+const G_MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const gMesAdd = (m, n) => { let [a, b] = m.split('-').map(Number); b += n; while (b < 1) { b += 12; a--; } while (b > 12) { b -= 12; a++; } return a + '-' + String(b).padStart(2, '0'); };
+const gMesRot = (m) => G_MES[+m.slice(5, 7) - 1] + '/' + m.slice(2, 4);
+const gMetas = () => Object.assign({}, METAS_PAD, LS.get('metas', {}));
+function gestIni(k) {
+  const h = hoje(), m = h.slice(0, 7);
+  return k === 'mes' ? m + '-01' : k === 'tri' ? gMesAdd(m, -2) + '-01' : k === 'ano' ? h.slice(0, 4) + '-01-01' : gMesAdd(m, -11) + '-01';
+}
+const gNum = (v) => Number(v || 0).toLocaleString('pt-BR');
+const gPct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+function gBarrasV(cols, series, fmt, LW) {
+  const W = LW || 680, H = 230, pl = 46, pr = 8, pt = 18, pb = 28, n = cols.length || 1, bw = (W - pl - pr) / n;
+  const tot = (c) => c.v.reduce((s, x) => s + (x || 0), 0);
+  let max = Math.max(1, ...cols.map(tot));
+  const pot = Math.pow(10, Math.floor(Math.log10(max))), passo = [1, 2, 2.5, 5, 10].map((x) => x * pot).find((x) => max / x <= 4) || pot * 10;
+  max = Math.ceil(max / passo) * passo;
+  const y = (v) => H - pb - (v / max) * (H - pb - pt);
+  let s = '';
+  for (let t = 0; t <= max + 1e-9; t += passo) s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(t) + '" y2="' + y(t) + '" class="gr-g"/><text x="' + (pl - 6) + '" y="' + (y(t) + 4) + '" class="gr-e" text-anchor="end">' + (fmt ? fmt(t, true) : gNum(t)) + '</text>';
+  cols.forEach((c, i) => {
+    const x = pl + i * bw + bw * 0.17, w = bw * 0.66; let acc = 0;
+    c.v.forEach((v, j) => { if (!v) return; const y1 = y(acc + v), y0 = y(acc); acc += v; s += '<rect x="' + x.toFixed(1) + '" y="' + y1.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + Math.max(0, y0 - y1).toFixed(1) + '" rx="3" style="fill:' + series[j].cor + '"><title>' + esc(c.rot + ' · ' + series[j].nome + ': ' + (fmt ? fmt(v) : gNum(v))) + '</title></rect>'; });
+    const t = tot(c);
+    if (t && !(fmt && n > 8)) s += '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (y(t) - 5).toFixed(1) + '" class="gr-v" text-anchor="middle">' + (fmt ? fmt(t, true) : gNum(t)) + '</text>';
+    s += '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (H - 9) + '" class="gr-e" text-anchor="middle">' + esc(c.rot) + '</text>';
+  });
+  const leg = series.length > 1 ? '<div class="gr-leg">' + series.map((x) => '<span><i style="background:' + x.cor + '"></i>' + esc(x.nome) + '</span>').join('') + '</div>' : '';
+  return '<svg class="gr" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img">' + s + '</svg>' + leg;
+}
+function gBarrasH(itens, cor, link) {
+  if (!itens.length) return vazio('Sem dados no período.', 'tabela');
+  const max = Math.max(1, ...itens.map((i) => i.n)), tot = itens.reduce((s, i) => s + i.n, 0);
+  return '<div class="hb">' + itens.map((i) => '<div class="hb-l' + (link ? ' clic' : '') + '"' + (link ? ' data-gl="' + esc(link) + '" data-gv="' + esc(i.k || i.rot) + '"' : '') + '><span class="hb-r" title="' + esc(i.rot) + '">' + esc(i.rot) + '</span><span class="hb-t"><i style="width:' + ((i.n / max) * 100).toFixed(1) + '%;background:' + (i.cor || cor) + '"></i></span><b>' + gNum(i.n) + '</b><span class="hb-p">' + gPct(i.n, tot) + '%</span></div>').join('') + '</div>';
+}
+const gConta = (lista, fn) => { const o = {}; lista.forEach((p) => { const k = fn(p); o[k] = (o[k] || 0) + 1; }); return Object.entries(o).map(([rot, n]) => ({ rot, n })).sort((a, b) => b.n - a.n || a.rot.localeCompare(b.rot)); };
+function gMinhaCota() {
+  const r = S.cgRat; if (!r) return null;
+  const nm = String((S.eu && S.eu.nome) || 'Emerim').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim().split(/\s+/);
+  const ult = nm[nm.length - 1] || 'EMERIM';
+  const out = {};
+  (r.rateios || []).forEach((x) => { const it = (x.itens || []).find((i) => String(i.nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().includes(ult)); if (it) out[x.mes] = +(it.valor || 0) + +(it.ajuste || 0); });
+  return out;
+}
+VIEWS.gestao = function () {
+  titulo('Gestão do trabalho');
+  $('#conteudo').classList.remove('largo');
+  const h = hoje(), mesAt = h.slice(0, 7);
+  const per = GEST_PER[S.gPer] ? S.gPer : (S.gPer = LS.get('gPer', 'mes'));
+  const ini = gestIni(GEST_PER[per] ? per : 'mes');
+  const todos = prazos();
+  const noPer = todos.filter((p) => p.fim && p.fim >= ini && p.fim <= h && p.status !== 'ARQUIVADO');
+  const prot = noPer.filter((p) => p.status === 'PROTOCOLADO').length, cien = noPer.filter((p) => p.status === 'CIENCIA').length;
+  const cumpr = prot + cien, taxa = gPct(cumpr, noPer.length);
+  const vencidos = todos.filter((p) => antigo(p) && aberto(p));
+  const prox7 = todos.filter((p) => aberto(p) && p.fim && p.fim >= h && p.fim <= addDias(h, 7)).length;
+  const abertosTot = todos.filter((p) => aberto(p) && !antigo(p)).length;
+  const memoPend = todos.filter((p) => aberto(p) && p.memo_status === 'A_ENVIAR').length;
+  const memoAg = todos.filter((p) => p.memo_status === 'ENVIADO').length;
+  const tarAb = tarefas().filter((t) => t.status === 'ABERTA').length;
+  const cota = gMinhaCota();
+  if (!cota && !S.cgRat && !VIEWS.gestao.lendo) {
+    VIEWS.gestao.lendo = true;
+    api('cghs_rateio').then((d) => { S.cgRat = { procuradores: (d && d.procuradores) || [], rateios: (d && d.rateios) || [] }; if (location.hash.startsWith('#/gestao')) VIEWS.gestao(); }).catch(() => {}).finally(() => { VIEWS.gestao.lendo = false; });
+  }
+  const iniM = ini.slice(0, 7);
+  const honPer = cota ? Object.entries(cota).filter(([m]) => m >= iniM && m <= mesAt).reduce((s, [, v]) => s + v, 0) : null;
+  // metas do mês corrente
+  const mt = gMetas();
+  const doMes = todos.filter((p) => p.fim && p.fim.slice(0, 7) === mesAt && p.fim <= h && p.status !== 'ARQUIVADO');
+  const protMes = doMes.filter((p) => p.status === 'PROTOCOLADO').length, crpMes = doMes.filter((p) => p.status === 'CIENCIA').length;
+  const taxaMes = gPct(protMes + crpMes, doMes.length);
+  const meta = (rot, val, alvo, menor, suf) => {
+    const ok = menor ? val <= alvo : val >= alvo;
+    const pc = menor ? (val <= alvo ? 100 : Math.max(4, Math.round((alvo / Math.max(val, 1)) * 100))) : Math.min(100, gPct(val, Math.max(alvo, 1)));
+    return '<div class="mt"><div class="mt-c"><span>' + rot + '</span><b class="' + (ok ? 'c-ok' : menor ? 'c-bad' : '') + '">' + gNum(val) + (suf || '') + ' <small class="mut">/ ' + (menor ? 'máx. ' : '') + gNum(alvo) + (suf || '') + '</small></b></div><div class="mt-b"><i class="' + (ok ? 'ok' : menor ? 'bad' : '') + '" style="width:' + pc + '%"></i></div></div>';
+  };
+  // série de 12 meses
+  const meses = []; for (let i = 11; i >= 0; i--) meses.push(gMesAdd(mesAt, -i));
+  const cols = meses.map((m) => { const l = todos.filter((p) => p.fim && p.fim.slice(0, 7) === m && p.status !== 'ARQUIVADO'); return { rot: gMesRot(m), m, v: [l.filter((p) => p.status === 'PROTOCOLADO').length, l.filter((p) => p.status === 'CIENCIA').length, l.filter((p) => aberto(p) && antigo(p)).length, l.filter((p) => aberto(p) && !antigo(p)).length] }; });
+  const SER = [{ nome: 'Protocolado', cor: 'var(--gold)' }, { nome: 'Ciência / CRP', cor: '#3F6FB5' }, { nome: 'Vencido sem cumprimento', cor: 'var(--bad)' }, { nome: 'A vencer', cor: 'var(--mut-2)' }];
+  // próximas semanas
+  const sem = []; for (let i = 0; i < 6; i++) { const a = addDias(h, i * 7), b = addDias(h, i * 7 + 6); sem.push({ rot: fdata(a).slice(0, 5), v: [todos.filter((p) => aberto(p) && p.fim && p.fim >= a && p.fim <= b).length] }); }
+  const honCols = cota ? meses.map((m) => ({ rot: gMesRot(m), v: [cota[m] || 0] })) : [];
+  const honVals = cota ? meses.map((m) => cota[m]).filter((v) => v) : [];
+  const fmoedaC = (v, curto) => curto && v >= 1000 ? 'R$ ' + (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil' : fmoeda(v);
+  const kpi = (rot, val, sub, cls, go) => '<div class="card kpi' + (cls ? ' ' + cls : '') + '"' + (go ? ' data-gg="' + go + '"' : '') + '><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div></div>';
+  const linhasMes = meses.slice().reverse().map((m, i) => { const c = cols[11 - i]; const t = c.v.reduce((s, x) => s + x, 0); return '<tr><td class="nw"><b>' + esc(gMesRot(m)) + '</b></td><td class="nw num-r">' + t + '</td><td class="nw num-r">' + c.v[0] + '</td><td class="nw num-r">' + c.v[1] + '</td><td class="nw num-r' + (c.v[2] ? ' c-bad' : '') + '">' + c.v[2] + '</td><td class="nw num-r">' + (t - c.v[3] ? gPct(c.v[0] + c.v[1], t - c.v[3]) + '%' : '–') + '</td><td class="nw num-r">' + (cota ? (cota[m] ? fmoeda(cota[m]) : '–') : '…') + '</td></tr>'; }).join('');
+  $('#conteudo').innerHTML =
+    '<div class="g-top"><div class="seg" role="group" aria-label="Período">' + Object.entries(GEST_PER).map(([k, t]) => '<button data-gper="' + k + '" class="' + (per === k ? 'on' : '') + '">' + t + '</button>').join('') + '</div><span class="pp mut">Período: ' + fdata(ini) + ' a ' + fdata(h) + ' · prazos fatais já vencidos ou de hoje</span></div>' +
+    '<div class="kpis g-kpis">' +
+      kpi('Prazos no período', gNum(noPer.length), 'com vencimento até hoje', '', 'prazos') +
+      kpi('Cumpridos', gNum(cumpr), taxa + '% dos prazos do período', taxa >= mt.cumpr ? '' : 'warn') +
+      kpi('Peças protocoladas', gNum(prot), 'no período', '') +
+      kpi('Ciência / CRP', gNum(cien), 'no período', '') +
+      kpi('Vencidos sem cumprimento', gNum(vencidos.length), 'acumulado', vencidos.length > mt.vencidos ? 'bad' : '', 'antigos') +
+      kpi('Prazos em aberto', gNum(abertosTot), prox7 + ' vencem em 7 dias', prox7 ? 'warn' : '', 'prazos') +
+      kpi('Memorandos', gNum(memoPend), 'a enviar · ' + memoAg + ' aguardando resposta', memoPend > mt.memos ? 'warn' : '', 'memorandos') +
+      kpi('Tarefas em aberto', gNum(tarAb), 'lista de tarefas', '', 'ordens') +
+      kpi('Honorários (minha cota)', honPer === null ? '…' : fmoeda(honPer), 'rateio CGHS pago no período', '', 'cghs') +
+      kpi('Média mensal de honorários', honVals.length ? fmoeda(honVals.reduce((s, v) => s + v, 0) / honVals.length) : (cota ? '–' : '…'), 'últimos 12 meses', '', 'cghs') +
+    '</div>' +
+    '<div class="grid g2" style="margin-top:16px">' +
+      '<div class="card"><div class="cab"><h2>Metas de ' + esc(MESES[+mesAt.slice(5, 7) - 1].toLowerCase()) + '</h2><div class="dir"><button class="btn sm fant" id="gmetas">' + ic('editar', 's') + '<span>Editar metas</span></button></div></div><div class="corpo">' +
+        meta('Peças protocoladas no mês', protMes, mt.pecas) + meta('Ciências / CRP no mês', crpMes, mt.crp) + meta('Prazos do mês cumpridos', taxaMes, mt.cumpr, false, '%') +
+        meta('Prazos vencidos sem cumprimento', vencidos.length, mt.vencidos, true) + meta('Memorandos pendentes de envio', memoPend, mt.memos, true) +
+      '</div></div>' +
+      '<div class="card"><div class="cab"><h2>Carga das próximas semanas</h2><div class="dir pp mut">prazos em aberto por semana</div></div><div class="corpo">' + gBarrasV(sem, [{ nome: 'Prazos', cor: 'var(--gold)' }]) + '</div></div>' +
+    '</div>' +
+    '<div class="card" style="margin-top:16px"><div class="cab"><h2>Produção mensal</h2><div class="dir pp mut">prazos pelo mês do vencimento · últimos 12 meses</div></div><div class="corpo">' + gBarrasV(cols, SER, null, 1180) + '</div></div>' +
+    '<div class="grid g2" style="margin-top:16px">' +
+      '<div class="card"><div class="cab"><h2>Peças do período</h2><div class="dir pp mut">clique para filtrar os prazos</div></div><div class="corpo">' + gBarrasH(gConta(noPer, peca).slice(0, 12), 'var(--gold)', 'peca') + '</div></div>' +
+      '<div class="card"><div class="cab"><h2>Natureza das ações</h2><div class="dir pp mut">período</div></div><div class="corpo">' + gBarrasH(gConta(noPer, natureza).slice(0, 12), '#3F6FB5', 'nat') + '</div></div>' +
+    '</div>' +
+    '<div class="grid g2" style="margin-top:16px">' +
+      '<div class="card"><div class="cab"><h2>Por tribunal</h2><div class="dir pp mut">período</div></div><div class="corpo">' + gBarrasH(gConta(noPer, (p) => TRIB_CURTO[p.tribunal] || p.tribunal || '—').map((x) => Object.assign(x, { k: Object.keys(TRIB_CURTO).find((k) => TRIB_CURTO[k] === x.rot) || '' })), 'var(--navy-2)', 'trib') + '</div></div>' +
+      '<div class="card"><div class="cab"><h2>Honorários – minha cota no rateio</h2><div class="dir pp mut">mês do pagamento</div></div><div class="corpo">' + (cota ? gBarrasV(honCols, [{ nome: 'Honorários', cor: 'var(--ok)' }], fmoedaC) : '<div class="carregando"><div class="spin"></div></div>') + '</div></div>' +
+    '</div>' +
+    '<div class="sec-tit">Resumo mês a mês</div><div class="card tab-wrap" style="max-height:none"><table class="tab g-tab"><thead><tr><th>Mês</th><th class="num-r">Prazos</th><th class="num-r">Protocolados</th><th class="num-r">Ciência / CRP</th><th class="num-r">Vencidos s/ cumprimento</th><th class="num-r">Cumprimento</th><th class="num-r">Honorários (minha cota)</th></tr></thead><tbody>' + linhasMes + '</tbody></table></div>' +
+    '<p class="pp mut" style="margin:10px 2px">Os números vêm dos prazos cadastrados no painel (situação e data do prazo fatal) e do rateio do CGHS. As metas ficam salvas neste aparelho.</p>';
+  $$('[data-gper]').forEach((b) => { b.onclick = () => { S.gPer = b.dataset.gper; LS.set('gPer', S.gPer); VIEWS.gestao(); }; });
+  $$('[data-gg]').forEach((k) => { k.onclick = () => { location.hash = '#/' + k.dataset.gg; }; });
+  $$('[data-gl]').forEach((l) => { l.onclick = () => { const g = l.dataset.gl, v = l.dataset.gv; Object.assign(S.f, { sit: 'todos', trib: '', marca: '', nat: '', peca: '', q: '', de: ini, ate: h }); S.f[g] = v; LS.set('filtros', S.f); Object.assign(S.fa, { sit: 'todos', trib: '', marca: '', nat: '', peca: '', q: '', de: ini, ate: h }); S.fa[g] = v; LS.set('filtrosA', S.fa); location.hash = '#/antigos'; }; });
+  $('#gmetas').onclick = () => {
+    const m = gMetas(), cp = (k, rot, suf) => '<label>' + rot + '<input class="inp" type="number" min="0" name="' + k + '" value="' + m[k] + '">' + (suf ? '<span class="pp mut">' + suf + '</span>' : '') + '</label>';
+    modal({ titulo: 'Metas mensais', corpo: '<form class="form" id="fmetas">' + cp('pecas', 'Peças protocoladas por mês') + cp('crp', 'Ciências / CRP por mês') + cp('cumpr', 'Prazos cumpridos (%)') + cp('vencidos', 'Máximo de prazos vencidos sem cumprimento') + cp('memos', 'Máximo de memorandos pendentes') + '</form>',
+      botoes: [{ txt: 'Restaurar padrão', cls: 'fant esq', acao: () => { LS.del('metas'); VIEWS.gestao(); } }, { txt: 'Cancelar', valor: null }, { txt: 'Salvar', cls: 'pri', ic: 'check', acao: (v) => { const d = Object.fromEntries(new FormData($('#fmetas', v)).entries()); Object.keys(d).forEach((k) => { d[k] = Math.max(0, +d[k] || 0); }); LS.set('metas', d); VIEWS.gestao(); toast('Metas salvas.'); } }] });
+  };
+};
+document.head.insertAdjacentHTML('beforeend', '<style>.g-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 14px}.g-kpis{grid-template-columns:repeat(5,minmax(0,1fr))!important}.g-kpis .kpi .val{font-size:22px}@media(max-width:1100px){.g-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}}@media(max-width:760px){.g-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}' +
+  'svg.gr{width:100%;height:auto;display:block}svg.gr .gr-g{stroke:var(--line);stroke-width:1}svg.gr .gr-e{fill:var(--mut);font-size:11px;font-family:var(--sans)}svg.gr .gr-v{fill:var(--txt);font-size:11px;font-weight:650;font-family:var(--sans)}' +
+  '.gr-leg{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;font-size:12px;color:var(--mut)}.gr-leg span{display:inline-flex;align-items:center;gap:6px}.gr-leg i{width:11px;height:11px;border-radius:3px;display:inline-block}' +
+  '.hb{display:flex;flex-direction:column;gap:7px}.hb-l{display:grid;grid-template-columns:minmax(120px,38%) 1fr 40px 38px;gap:10px;align-items:center;font-size:13px;border-radius:8px;padding:2px 4px}.hb-l.clic{cursor:pointer}.hb-l.clic:hover{background:var(--surface-2)}.hb-r{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hb-t{height:12px;border-radius:99px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}.hb-t i{display:block;height:100%;border-radius:99px}.hb-l b{text-align:right;font-variant-numeric:tabular-nums}.hb-p{font-size:11.5px;color:var(--mut);text-align:right}' +
+  '.mt{padding:9px 0;border-top:1px solid var(--line)}.mt:first-child{border-top:0}.mt-c{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;margin-bottom:6px}.mt-c b{font-variant-numeric:tabular-nums;white-space:nowrap}.mt-b{height:9px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden}.mt-b i{display:block;height:100%;background:var(--gold);border-radius:99px}.mt-b i.ok{background:var(--ok)}.mt-b i.bad{background:var(--bad)}.g-tab td.num-r,.g-tab th.num-r{text-align:right}</style>');
 // ---------- Junta de Recursos Fiscais ----------
 const JST = { EM_ANALISE: 'Em análise', VOTO_PRONTO: 'Voto pronto', PAUTADO: 'Pautado', VISTA: 'Pedido de vista', DILIGENCIA: 'Em diligência', JULGADO: 'Julgado', ARQUIVADO: 'Arquivado' };
 const JRES = { PROVIDO: 'Provido', PARCIAL: 'Parcialmente provido', NAO_PROVIDO: 'Não provido', NAO_CONHECIDO: 'Não conhecido', DILIGENCIA: 'Convertido em diligência', OUTRO: 'Outro' };
@@ -1668,3 +1822,4 @@ async function alternarTarefa(id) {
 // ---------- início ----------
 aplicarTema(LS.get('tema', 'auto'));
 if (S.token) iniciarApp(); else telaLogin('');
+document.head.insertAdjacentHTML('beforeend', '<style>/* Layout FCE: barra superior escura + cabeçalho de página + rodapé (24/11/2026) */:root{--tn:76px;--rp:92px;--tn-bg:#1d1f24}.side{display:none!important}.main{margin-left:0!important;min-height:calc(100vh - var(--tn))}.tn{position:sticky;top:0;z-index:40;background:linear-gradient(180deg,#25272d,#1b1d22);color:#e6e8ec;box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 10px 24px -14px rgba(0,0,0,.6)}.tn-in{display:flex;align-items:center;gap:16px;height:var(--tn);padding:0 28px}.tn-marca{display:flex;align-items:center;gap:10px;flex:none;color:#fff}.tn-marca img{height:44px;width:auto;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}.tn-pgm{font:800 25px/1 var(--sans);letter-spacing:-.6px;color:#fff}.tn-pgm i{font-style:italic;color:var(--gold-2);margin-left:1px;letter-spacing:-2px}.tn-sub{font-size:10.5px;font-weight:600;letter-spacing:2.6px;color:#a9aeb8;text-transform:uppercase;line-height:1.3}.tn-nav{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}.tn-nav::-webkit-scrollbar{display:none}.tn-nav a{position:relative;display:flex;align-items:center;gap:6px;height:44px;padding:0 11px;border-radius:10px;color:#c8ccd3;font-size:15px;font-weight:500;white-space:nowrap;transition:background .15s,color .15s}.tn-nav a:hover{color:#fff;background:rgba(255,255,255,.05)}.tn-nav a.on{color:#fff;background:rgba(255,255,255,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 2px 6px rgba(0,0,0,.3)}.tn-nav a.on::after{content:"";position:absolute;left:32%;right:32%;bottom:4px;height:2px;border-radius:2px;background:var(--gold-2)}.tn-nav .bdg{height:19px;min-width:19px;font-size:11px;box-shadow:none}.tn-links{position:relative;flex:none}.tn-links summary{list-style:none;display:flex;align-items:center;justify-content:center;gap:6px;height:40px;width:40px;padding:0;border-radius:10px;color:#c8ccd3;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}.tn-links summary::-webkit-details-marker{display:none}.tn-links summary:hover,.tn-links[open] summary{color:#fff;background:rgba(255,255,255,.06)}.tn-links .tn-dd{position:absolute;right:0;top:46px;min-width:280px;background:var(--surface);color:var(--txt);border:1px solid var(--line-2);border-radius:14px;box-shadow:var(--sh-lg);padding:6px;z-index:50}.tn-links .tn-dd a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;font-size:14px}.tn-links .tn-dd a:hover{background:var(--surface-2)}.tn-links .tn-dd small{display:block;color:var(--mut);font-size:12px}.tn-eu{display:flex;align-items:center;gap:12px;flex:none}.tn-eu .av{width:42px;height:42px;box-shadow:0 0 0 2px rgba(255,255,255,.12)}.tn-eu b{font-weight:600;font-size:16px;color:#fff;white-space:nowrap}.tn-sair{background:none;border:0;color:#a9aeb8;cursor:pointer;padding:7px;border-radius:9px;display:grid;place-items:center}.tn-sair:hover{color:#fff;background:rgba(255,255,255,.07)}.topo{position:relative!important;top:auto!important;height:98px!important;padding:0 44px!important;background:color-mix(in srgb,var(--surface) 55%,var(--bg))!important;color:var(--txt)!important;border-bottom:1px solid var(--line);box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}.topo::after{display:none!important}.topo h1{font:700 30px var(--serif)!important;color:var(--txt)!important;letter-spacing:-.2px}.topo .acoes{gap:12px}.topo .btn.fant.ico{width:54px;height:54px;border-radius:15px;background:var(--surface);border:1px solid var(--line);color:var(--mut);box-shadow:inset 0 1px 0 var(--brilho-b),0 2px 4px rgba(16,24,40,.08),0 8px 16px -8px rgba(16,24,40,.25)}.topo .btn.fant.ico svg.i{width:24px;height:24px}.topo .btn.fant.ico:hover{color:var(--txt)}.topo .btn.pri.sm{height:46px;padding:0 20px;border-radius:12px;font-size:15px}.conteudo{max-width:1320px!important;margin:0 auto;padding:26px 44px calc(var(--rp) + 40px)!important}.conteudo.largo{max-width:none!important}.rp{position:fixed;left:0;right:0;bottom:0;z-index:25;min-height:var(--rp);display:flex;gap:56px;align-items:center;padding:12px 44px;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);font-size:13.5px;line-height:1.45;color:var(--mut)}.rp b{display:block;color:var(--txt);font-weight:650}.tab-wrap{max-height:calc(100vh - var(--tn) - 98px - var(--rp) - 120px)}.fab{bottom:calc(var(--rp) + 18px)}.toast{bottom:calc(var(--rp) + 18px)}.rodape-app{display:none}:root[data-tema="escuro"] .topo{background:color-mix(in srgb,var(--surface) 70%,var(--bg))!important}@media (max-width:1500px){.tn-nav a{padding:0 9px;font-size:14.5px}.tn-eu b{display:none}}@media (max-width:1240px){.tn-sub{display:none}.tn-nav a{padding:0 7px;font-size:14px}.tn-in{gap:10px;padding:0 16px}.tn-nav .bdg{height:17px;min-width:17px;font-size:10px;padding:0 4px}}@media (max-width:900px){  :root{--tn:58px}  .tn-in{height:calc(var(--tn) + env(safe-area-inset-top));padding:env(safe-area-inset-top) 16px 0}  .tn-nav,.tn-links{display:none}  .tn-marca{flex:1}.tn-marca img{height:36px}.tn-pgm{font-size:21px}.tn-sub{display:block;font-size:9px;letter-spacing:2px}  .tn-eu .av{width:34px;height:34px}  .topo{height:64px!important;padding:0 16px!important}  .topo h1{font-size:22px!important}  .topo .btn.fant.ico{width:42px;height:42px;border-radius:12px}  .topo .btn.pri.sm{height:38px;padding:0 12px;font-size:13px}  .conteudo{padding:12px 16px 32px!important}  .rp{display:none}  .fab{bottom:calc(var(--tab) + 14px + env(safe-area-inset-bottom))}  .toast{bottom:calc(var(--tab) + 14px + env(safe-area-inset-bottom))}  .tab-wrap{max-height:calc(100vh - 300px - var(--tab))}}@media (max-width:560px){.topo .btn.pri.sm span{display:none}.f-per input[type=date].sel{flex:1;min-width:130px}}</style>');
