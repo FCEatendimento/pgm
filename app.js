@@ -661,6 +661,83 @@ function gMinhaCota() {
   (r.rateios || []).forEach((x) => { const it = (x.itens || []).find((i) => String(i.nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().includes(ult)); if (it) out[x.mes] = +(it.valor || 0) + +(it.ajuste || 0); });
   return out;
 }
+// fluxo de entrada x saída (prazos, memorandos e e-mails) por dia, semana, mês ou ano
+const G_GRAN = { dia: 'Dia', sem: 'Semana', mes: 'Mês', ano: 'Ano' };
+const gDiaSP = (ts) => (ts ? new Date(ts).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) : '');
+function gChave(d, g) {
+  if (!d) return '';
+  if (g === 'ano') return d.slice(0, 4);
+  if (g === 'mes') return d.slice(0, 7);
+  if (g === 'sem') { const x = dt(d); const w = (x.getUTCDay() + 6) % 7; return addDias(d, -w); }
+  return d;
+}
+function gPeriodos(g) {
+  const h = hoje(), out = [];
+  if (g === 'ano') { const a = +h.slice(0, 4); for (let i = 4; i >= 0; i--) out.push(String(a - i)); }
+  else if (g === 'mes') { for (let i = 11; i >= 0; i--) out.push(gMesAdd(h.slice(0, 7), -i)); }
+  else if (g === 'sem') { const s0 = gChave(h, 'sem'); for (let i = 11; i >= 0; i--) out.push(addDias(s0, -7 * i)); }
+  else { for (let i = 13; i >= 0; i--) out.push(addDias(h, -i)); }
+  return out;
+}
+function gRotPer(k, g, longo) {
+  if (g === 'ano') return k;
+  if (g === 'mes') return longo ? MESES[+k.slice(5, 7) - 1] + '/' + k.slice(0, 4) : gMesRot(k);
+  if (g === 'sem') return longo ? 'semana de ' + fdata(k) + ' a ' + fdata(addDias(k, 6)) : fdata(k).slice(0, 5);
+  return longo ? fdata(k, true) : fdata(k).slice(0, 5);
+}
+function gBarrasG(cols, series, sel, LW) {
+  const W = LW || 680, H = 210, pl = 34, pr = 6, pt = 16, pb = 26, n = cols.length || 1, bw = (W - pl - pr) / n, ns = series.length;
+  let max = Math.max(1, ...cols.flatMap((c) => c.v));
+  const pot = Math.pow(10, Math.floor(Math.log10(max))), passo = [1, 2, 2.5, 5, 10].map((x) => x * pot).find((x) => max / x <= 4) || pot * 10;
+  max = Math.ceil(max / passo) * passo;
+  const y = (v) => H - pb - (v / max) * (H - pb - pt);
+  let s = '';
+  for (let t = 0; t <= max + 1e-9; t += passo) s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(t) + '" y2="' + y(t) + '" class="gr-g"/><text x="' + (pl - 5) + '" y="' + (y(t) + 4) + '" class="gr-e" text-anchor="end">' + gNum(t) + '</text>';
+  cols.forEach((c, i) => {
+    const x0 = pl + i * bw;
+    if (c.k === sel) s += '<rect x="' + (x0 + 1).toFixed(1) + '" y="' + (pt - 8) + '" width="' + (bw - 2).toFixed(1) + '" height="' + (H - pb - pt + 8) + '" rx="6" class="gr-sel"/>';
+    const w = (bw * 0.78) / ns;
+    c.v.forEach((v, j) => { const x = x0 + bw * 0.11 + j * w; if (v) s += '<rect x="' + x.toFixed(1) + '" y="' + y(v).toFixed(1) + '" width="' + (w - 2).toFixed(1) + '" height="' + (H - pb - y(v)).toFixed(1) + '" rx="2" style="fill:' + series[j].cor + '"><title>' + esc(c.rot + ' · ' + series[j].nome + ': ' + v) + '</title></rect>'; });
+    s += '<text x="' + (x0 + bw / 2).toFixed(1) + '" y="' + (H - 8) + '" class="gr-e" text-anchor="middle">' + esc(c.rot) + '</text>';
+    s += '<rect x="' + x0.toFixed(1) + '" y="0" width="' + bw.toFixed(1) + '" height="' + H + '" fill="transparent" style="cursor:pointer" data-gsel="' + esc(c.k) + '"/>';
+  });
+  return '<svg class="gr" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' + s + '</svg><div class="gr-leg">' + series.map((x) => '<span><i style="background:' + x.cor + '"></i>' + esc(x.nome) + '</span>').join('') + '</div>';
+}
+function gFluxoHTML() {
+  const g = G_GRAN[S.gGran] ? S.gGran : (S.gGran = LS.get('gGran', 'sem'));
+  const pers = gPeriodos(g);
+  if (!pers.includes(S.gSel)) S.gSel = pers[pers.length - 1];
+  const sel = S.gSel, todos = prazos();
+  const k = (ts) => gChave(gDiaSP(ts), g);
+  const ent = (per) => todos.filter((p) => k(p.criado_em) === per);
+  const fei = (per) => todos.filter((p) => (p.status === 'PROTOCOLADO' || p.status === 'CIENCIA') && k(p.concluido_em || p.atualizado_em) === per);
+  const mNovo = (per) => todos.filter((p) => k(p.memo_criado_em) === per).length;
+  const mEnv = (per) => todos.filter((p) => k(p.memo_enviado_em) === per).length;
+  const mResp = (per) => todos.filter((p) => k(p.memo_respondido_em) === per).length;
+  const e = ent(sel), f = fei(sel);
+  const eAb = e.filter((p) => p.fim).length, ePe = e.length - eAb;
+  const fPr = f.filter((p) => p.status === 'PROTOCOLADO').length, fCi = f.length - fPr;
+  const card = (rot, val, sub, cls) => '<div class="gf-k' + (cls ? ' ' + cls : '') + '"><span>' + rot + '</span><b>' + val + '</b><small>' + sub + '</small></div>';
+  const saldo = e.length - f.length;
+  return '<div class="card gf" style="margin-top:16px"><div class="cab"><h2>Fluxo de trabalho</h2><div class="dir gf-ctl"><div class="seg" role="group" aria-label="Agrupar por">' + Object.entries(G_GRAN).map(([kk, t]) => '<button data-ggran="' + kk + '" class="' + (g === kk ? 'on' : '') + '">' + t + '</button>').join('') + '</div>' +
+    '<select class="sel" id="gsel">' + pers.slice().reverse().map((p) => '<option value="' + esc(p) + '"' + (p === sel ? ' selected' : '') + '>' + esc(gRotPer(p, g, true)) + '</option>').join('') + '</select></div></div>' +
+    '<div class="corpo"><div class="gf-sec"><div class="gf-t">' + ic('prazo', 's') + 'Prazos <span class="pp mut">' + esc(gRotPer(sel, g, true)) + '</span></div><div class="gf-ks">' +
+      card('Entraram', gNum(e.length), eAb + ' abertos · ' + ePe + ' pendentes de intimação') + card('Feitos', gNum(f.length), fPr + ' protocolados · ' + fCi + ' ciência/CRP', 'ok') +
+      card('Saldo', (saldo > 0 ? '+' : '') + gNum(saldo), saldo > 0 ? 'entrou mais do que saiu' : saldo < 0 ? 'saiu mais do que entrou' : 'equilibrado', saldo > 0 ? 'warn' : '') + '</div>' +
+      gBarrasG(pers.map((p) => ({ k: p, rot: gRotPer(p, g), v: [ent(p).length, fei(p).length] })), [{ nome: 'Entraram', cor: 'var(--mut-2)' }, { nome: 'Feitos', cor: 'var(--gold)' }], sel, 1180) + '</div>' +
+    '<div class="grid g2" style="margin-top:6px"><div class="gf-sec"><div class="gf-t">' + ic('memo', 's') + 'Memorandos</div><div class="gf-ks">' +
+      card('A enviar (novos)', gNum(mNovo(sel)), 'processos que passaram a pedir memorando') + card('Enviados', gNum(mEnv(sel)), 'saíram para as secretarias', 'ok') + card('Respondidos', gNum(mResp(sel)), 'retornaram das secretarias') + '</div>' +
+      gBarrasG(pers.map((p) => ({ k: p, rot: gRotPer(p, g), v: [mNovo(p), mEnv(p), mResp(p)] })), [{ nome: 'A enviar', cor: 'var(--mut-2)' }, { nome: 'Enviados', cor: 'var(--gold)' }, { nome: 'Respondidos', cor: 'var(--ok)' }], sel) + '</div>' +
+    '<div class="gf-sec"><div class="gf-t">' + ic('email', 's') + 'E-mails</div><div class="gf-ks">' + card('Recebidos', '–', 'aguardando integração') + card('Tratados', '–', 'aguardando integração') + card('A tratar', '–', 'aguardando integração') + '</div>' +
+      '<div class="gf-vaz">' + ic('email') + '<p>Os números de e-mails aparecem aqui quando a caixa do Expresso for conectada ao painel (proposta da aba Correspondência).</p></div></div></div>' +
+    '<p class="pp mut" style="margin:8px 0 0">Entrada = data em que o prazo foi cadastrado no painel; feito = data em que foi marcado como protocolado ou ciência. Prazos anteriores a 21/10/2026 entraram todos na carga inicial. Clique numa barra para ver o período.</p></div></div>';
+}
+function gFluxoLigar() {
+  $$('[data-ggran]').forEach((b) => { b.onclick = () => { S.gGran = b.dataset.ggran; LS.set('gGran', S.gGran); S.gSel = ''; VIEWS.gestao(); }; });
+  const s = $('#gsel'); if (s) s.onchange = () => { S.gSel = s.value; VIEWS.gestao(); };
+  $$('[data-gsel]').forEach((r) => { r.onclick = () => { S.gSel = r.dataset.gsel; VIEWS.gestao(); }; });
+}
+document.head.insertAdjacentHTML('beforeend', '<style>.gf-ctl{gap:8px!important;flex-wrap:wrap}.gf-ctl .sel{width:auto;height:36px;min-width:210px;font-size:13px}.gf-sec{padding:6px 0 4px}.gf-t{display:flex;align-items:center;gap:7px;font-weight:650;font-size:14px;margin:6px 0 10px}.gf-ks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}.gf-k{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface-2);display:flex;flex-direction:column;gap:2px}.gf-k span{font-size:12px;color:var(--mut);font-weight:600}.gf-k b{font-size:22px;font-variant-numeric:tabular-nums}.gf-k small{font-size:11.5px;color:var(--mut);line-height:1.3}.gf-k.ok b{color:var(--ok)}.gf-k.warn b{color:var(--warn)}svg.gr .gr-sel{fill:var(--gold-soft)}.gf-vaz{display:flex;gap:12px;align-items:center;padding:14px;border:1px dashed var(--line-2);border-radius:12px;color:var(--mut);font-size:13px}.gf-vaz p{margin:0}@media(max-width:760px){.gf-ks{grid-template-columns:1fr 1fr 1fr;gap:6px}.gf-k b{font-size:18px}.gf-ctl .sel{min-width:0;width:100%}}</style>');
 VIEWS.gestao = function () {
   titulo('Gestão do trabalho');
   $('#conteudo').classList.remove('largo');
@@ -707,6 +784,7 @@ VIEWS.gestao = function () {
       kpi('Memorandos a enviar', gNum(memoPend), memoAg + ' aguardando resposta', memoPend > mt.memos ? 'warn' : '', 'memorandos') +
       kpi('Tarefas em aberto', gNum(tarAb), 'lista de tarefas', '', 'ordens') +
     '</div>' +
+    gFluxoHTML() +
     '<div class="grid g2" style="margin-top:16px">' +
       '<div class="card"><div class="cab"><h2>Metas de ' + esc(MESES[+mesAt.slice(5, 7) - 1].toLowerCase()) + '</h2><div class="dir"><button class="btn sm fant" id="gmetas">' + ic('editar', 's') + '<span>Editar metas</span></button></div></div><div class="corpo">' +
         meta('Peças protocoladas no mês', protMes, mt.pecas) + meta('Ciências / CRP no mês', crpMes, mt.crp) + meta('Prazos do mês cumpridos', taxaMes, mt.cumpr, false, '%') +
@@ -726,6 +804,7 @@ VIEWS.gestao = function () {
     '<div class="sec-tit">Resumo mês a mês</div><div class="card tab-wrap" style="max-height:none"><table class="tab g-tab"><thead><tr><th>Mês</th><th class="num-r">Prazos</th><th class="num-r">Protocolados</th><th class="num-r">Ciência / CRP</th><th class="num-r">Vencidos s/ cumprimento</th><th class="num-r">Cumprimento</th></tr></thead><tbody>' + linhasMes + '</tbody></table></div>' +
     '<p class="pp mut" style="margin:10px 2px">Os números vêm dos prazos cadastrados no painel (situação e data do prazo fatal). As metas ficam salvas neste aparelho.</p>';
   $$('[data-gper]').forEach((b) => { b.onclick = () => { S.gPer = b.dataset.gper; LS.set('gPer', S.gPer); VIEWS.gestao(); }; });
+  gFluxoLigar();
   $$('[data-gg]').forEach((k) => { k.onclick = () => { location.hash = '#/' + k.dataset.gg; }; });
   $$('[data-gl]').forEach((l) => { l.onclick = () => { const g = l.dataset.gl, v = l.dataset.gv; Object.assign(S.f, { sit: 'todos', trib: '', marca: '', nat: '', peca: '', q: '', de: ini, ate: h }); S.f[g] = v; LS.set('filtros', S.f); Object.assign(S.fa, { sit: 'todos', trib: '', marca: '', nat: '', peca: '', q: '', de: ini, ate: h }); S.fa[g] = v; LS.set('filtrosA', S.fa); location.hash = '#/antigos'; }; });
   $('#gmetas').onclick = () => {
