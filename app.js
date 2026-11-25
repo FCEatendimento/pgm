@@ -2190,3 +2190,5 @@ function linhasTrib(l) {
     .map((x) => '<span class="ln"><span>' + x[1] + '</span><b>' + l.filter((p) => p.tribunal === x[0]).length + '</b></span>').join('');
 }
 document.head.insertAdjacentHTML('beforeend', '<style>.kpis.k5{align-items:start}.kpis.k5 .kpi .sub{white-space:normal;line-height:1.35}.kpis.k5 .kpi .sub .ln{display:flex;justify-content:space-between;gap:8px}.kpis.k5 .kpi .sub .ln b{color:var(--txt);font-weight:650;font-variant-numeric:tabular-nums}</style>');
+// TJSC como tribunal do app (filtros, formulário e etiquetas) – 25/11/2026
+TRIB.TJSC = 'TJSC'; TRIB_CURTO.TJSC = 'TJSC';
