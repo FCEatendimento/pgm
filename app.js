@@ -340,7 +340,7 @@ VIEWS.inicio = function () {
     '<div class="kpis k5">' +
     kpi('Vencem hoje', hj.length, fdata(h, true), 'hoje', hj.length ? 'bad' : '', 'hoje') +
     kpi('Próximos 7 dias', sem7.length, 'até ' + fdata(addDias(h, 7)), 'semana', 'warn', '7dias') +
-    kpi('Prazos abertos', ab.length, 'a fazer ou em elaboração', 'lista', '', '') +
+    kpi('Prazos abertos', ab.length, '<span class="ln">a fazer ou em elaboração</span>' + linhasTrib(ab), 'lista', '', '') +
     kpi('Embargos de declaração', ed.length, 'cabíveis e no prazo', 'ed', 'info', 'ed') +
     kpi('Memorandos', memA.length + memE.length, memA.length + ' a enviar · ' + memE.length + ' aguardando' + (atA.length ? ' · ' + atA.length + ' Atendenet' : ''), 'memo', '', 'memo') +
     '</div>' + layoutInicio(h, ab) +
@@ -384,7 +384,7 @@ function destaques(h, ab) {
     t('Ciência / CRP a dar', crp.length, 'prazos abertos sem peça – liberar logo', 'check', crp.length ? 'info' : '', 'crp') +
     (ed3.length ? t('ED em até 3 dias', ed3.length, 'embargos de declaração vencendo', 'ed', 'bad', 'ed') : '') +
     (rec.length ? t('Até o recesso', rec.length, 'vencem até ' + fdata(fimRecesso(h)) + ' (recesso 20/12 a 20/01)', 'agenda', 'warn', 'recesso') : '') +
-    t('Aguardando abertura', ag.length, '<span class="ln">' + (triar.length ? triar.length + ' ainda a triar' : 'intimações expedidas, sem prazo') + '</span>' + porTrib(ag), 'hoje', triar.length ? 'warn' : '', 'aguard', 'pendentes') +
+    t('Aguardando abertura', ag.length, '<span class="ln">' + (triar.length ? triar.length + ' ainda a triar' : 'intimações expedidas, sem prazo') + '</span>' + linhasTrib(ag), 'hoje', triar.length ? 'warn' : '', 'aguard', 'pendentes') +
     t('Audiências e perícias', aud.length, aud.length ? 'agendadas · ' + aud7.length + ' nos próximos 7 dias' + (audProx ? ' · próxima ' + fdata(audProx.data) : '') : 'nenhuma agendada', 'agenda', aud7.length ? 'warn' : '', 'aud') +
     t('Honorários a executar', csAt.length + csEx.length, '<span class="ln"><span>Aguardando trânsito em julgado</span><b>' + csAt.length + '</b></span><span class="ln"><span>Prontos para executar' + vTxt(csEx) + '</span><b>' + csEx.length + '</b></span>', 'martelo', csEx.length ? 'info' : '', 'cumpr') +
     '';
@@ -2184,3 +2184,9 @@ document.head.insertAdjacentHTML('beforeend', '<style>' +
   '.compacta .pr-li{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;margin-top:2px}.compacta .item .pr-cp{height:22px;padding:0 8px;font-size:11.5px;margin-top:3px}' +
   '.compacta .lista .item .dot{margin-top:0}.compacta .item .mid{display:flex;flex-wrap:wrap;align-items:center;column-gap:10px;row-gap:2px}.compacta .item .mid>.t,.compacta .item .mid>.pr-li{flex:1 0 100%}.compacta .item .mid>.d{flex:0 1 auto;max-width:62%;margin:0}.compacta .item .mid>.tags{margin:0;flex:0 1 auto}.compacta .item .dir{flex-direction:row;align-items:center;gap:8px;max-width:none}' +
   '</style>');
+// linhas por tribunal e instância (Prazos abertos e Aguardando abertura), com STJ e STF (25/11/2026)
+function linhasTrib(l) {
+  return [['TJRS1', 'TJRS 1º grau'], ['TJRS2', 'TJRS 2º grau'], ['TRF41', 'TRF4 1º grau'], ['TRF42', 'TRF4 2º grau'], ['TJSC', 'TJSC'], ['STJ', 'STJ'], ['STF', 'STF']]
+    .map((x) => '<span class="ln"><span>' + x[1] + '</span><b>' + l.filter((p) => p.tribunal === x[0]).length + '</b></span>').join('');
+}
+document.head.insertAdjacentHTML('beforeend', '<style>.kpis.k5{align-items:start}.kpis.k5 .kpi .sub{white-space:normal;line-height:1.35}.kpis.k5 .kpi .sub .ln{display:flex;justify-content:space-between;gap:8px}.kpis.k5 .kpi .sub .ln b{color:var(--txt);font-weight:650;font-variant-numeric:tabular-nums}</style>');
