@@ -316,6 +316,16 @@ const vazio = (txt, i) => '<div class="vazio">' + ic(i || 'check') + esc(txt) + 
 
 // ---------- telas ----------
 const VIEWS = {};
+// ---------- destaques do Início (25/11/2026) ----------
+const nrm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const LIM_RX = (t) => { t = nrm(t).replace(/indeferi\w*/g, ' x '); return /\b(liminar|tutela) deferida/.test(t) || /\b(liminar|tutela( de urgencia| antecipada| provisoria| de evidencia)?)\b[^.;|]{0,25}\b(deferid|concedid|mantid)/.test(t) || /\b(deferiu|concedeu|deferida|concedida|deferido)\b[^.;|]{0,25}\b(a |o )?(medida )?\b(liminar|tutela|pedido liminar)\b/.test(t) || /\bliminar( ev\.? ?\d+)?:? (suspend|determin|exclu|suspendeu|determinou)/.test(t) || /cumprimento da (liminar|tutela)/.test(t); };
+function procLiminar() { const set = new Set(); prazos().forEach((p) => { if (LIM_RX([p.providencia, p.teor, p.intimacao, p.observacoes].join(' | '))) set.add(p.processo); }); return set; }
+const PV = (p) => nrm(p.providencia);
+const ehCiencia = (p) => /^(ciencia|crp|peticao: nada a requerer)/.test(PV(p)) || /ciencia com renuncia/.test(PV(p).slice(0, 40));
+const ehDefesa = (p) => /^(contesta|informacoes|impugna|manifestacao sobre (a )?(excecao|impugnacao|embargos)|resposta|defesa)/.test(PV(p));
+const semMinuta = (p, h) => p.status === 'PENDENTE' && p.fim && p.fim >= h && p.fim <= addDias(h, 15) && !ehCiencia(p) && !/^a triar/.test(PV(p));
+const fimRecesso = (h) => h.slice(0, 4) + '-12-19';
+const emRecessoJanela = (h) => h >= h.slice(0, 4) + '-11-15' && h <= fimRecesso(h);
 VIEWS.inicio = function () {
   titulo('Início');
   const h = hoje(), ab = prazos().filter(aberto), abAt = ab.filter((p) => !antigo(p));
@@ -334,7 +344,7 @@ VIEWS.inicio = function () {
     kpi('Prazos abertos', ab.length, 'a fazer ou em elaboração', 'lista', '', '') +
     kpi('Embargos de declaração', ed.length, 'cabíveis e no prazo', 'ed', 'info', 'ed') +
     kpi('Memorandos', memA.length + memE.length, memA.length + ' a enviar · ' + memE.length + ' aguardando' + (atA.length ? ' · ' + atA.length + ' Atendenet' : ''), 'memo', '', 'memo') +
-    '</div>' +
+    '</div>' + destaques(h, ab) +
     '<div class="grid g2" style="margin-top:16px"><div class="card"><div class="cab"><h2>Próximos vencimentos</h2><div class="dir"><a class="btn fant sm" href="#/prazos">Ver todos</a></div></div><div class="lista" id="l1">' +
     (abAt.slice(0, 8).map(itemPrazo).join('') || vazio('Nenhum prazo aberto.')) + '</div></div>' +
     '<div class="card"><div class="cab"><h2>Lista de Tarefas</h2><div class="dir"><a class="btn fant sm" href="#/ordens">Ver todas</a></div></div><div class="lista" id="l2">' +
@@ -342,10 +352,41 @@ VIEWS.inicio = function () {
     '<div class="sec-tit">Junta de Recursos Fiscais <a class="btn fant sm" href="#/junta" style="margin-left:auto">Abrir</a></div>' + cardProxSessao() +
     (() => { const l = jProc().filter(jrfAberto).slice(0, 5); return l.length ? '<div class="card" style="margin-top:12px"><div class="lista">' + l.map(itemJrf).join('') + '</div></div>' : ''; })() +
     '<div class="rodape-app">TJRS 1º e 2º graus · TRF4 1º e 2º graus · Junta de Recursos Fiscais</div>';
-  $$('[data-go]').forEach((e) => { e.onclick = () => { const g = e.dataset.go; if (g === 'memo') { location.hash = '#/memorandos'; return; } if (g === 'atrasados') { Object.assign(S.fa, { sit: 'abertos', trib: '', marca: '', q: '' }); LS.set('filtrosA', S.fa); location.hash = '#/antigos'; return; } Object.assign(S.f, { sit: 'abertos', trib: '', marca: g, q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; }; });
+  $$('[data-go]').forEach((e) => { e.onclick = () => { const g = e.dataset.go; if (g === 'memo' || g === 'memoA' || g === 'memoE') { if (g !== 'memo') { S.fms = g === 'memoA' ? 'A_ENVIAR' : 'ENVIADO'; S.fmt = ''; LS.set('fmemo', { s: S.fms, t: '' }); } location.hash = '#/memorandos'; return; } if (g === 'aud') { S.fau = 'proximas'; location.hash = '#/audiencias'; return; } if (g === 'cumpr') { S.fc = 'A_EXECUTAR'; location.hash = '#/cumprimentos'; return; } if (g === 'aguard' || e.dataset.sit === 'pendentes') { Object.assign(S.f, { sit: 'pendentes', trib: '', marca: g === 'aguard' ? '' : g, nat: '', peca: '', de: '', ate: '', q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; return; } if (g === 'atrasados') { Object.assign(S.fa, { sit: 'abertos', trib: '', marca: '', q: '' }); LS.set('filtrosA', S.fa); location.hash = '#/antigos'; return; } Object.assign(S.f, { sit: 'abertos', trib: '', marca: g, q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; }; });
   ligarListas($('#conteudo')); ligarJunta($('#conteudo'));
   $$('[data-o]').forEach((e) => { e.onclick = () => verOrdem(ordensLista().find((o) => o.id === e.dataset.o)); });
 };
+function destaques(h, ab) {
+  const lp = procLiminar(), abComFim = ab.filter((p) => p.fim);
+  const lim = new Set(ab.filter((p) => lp.has(p.processo)).map((p) => p.processo));
+  const limProx = ab.filter((p) => lp.has(p.processo) && p.fim && p.fim >= h).sort((a, b) => a.fim.localeCompare(b.fim))[0];
+  const memA = ab.filter((p) => p.memo_status === 'A_ENVIAR'), memA15 = memA.filter((p) => p.fim && p.fim <= addDias(h, 15));
+  const memE = ab.filter((p) => p.memo_status === 'ENVIADO'), memAtr = memE.filter((p) => p.memo_retorno && p.memo_retorno < h);
+  const memHoje = memE.filter((p) => p.memo_retorno && p.memo_retorno >= h && p.memo_retorno <= addDias(h, 3));
+  const semMin = abComFim.filter((p) => semMinuta(p, h)), semMin5 = semMin.filter((p) => p.fim <= addDias(h, 5));
+  const def = abComFim.filter((p) => ehDefesa(p) && p.fim >= h), defSem = def.filter((p) => p.status === 'PENDENTE');
+  const crp = abComFim.filter((p) => ehCiencia(p) && p.fim >= h);
+  const ag = ab.filter((p) => !p.fim), triar = ab.filter((p) => /^a triar/.test(PV(p)));
+  const ed3 = ab.filter((p) => p.ed_cabivel && p.ed_prazo && p.ed_prazo >= h && p.ed_prazo <= addDias(h, 3));
+  const rec = emRecessoJanela(h) ? abComFim.filter((p) => p.fim >= h && p.fim <= fimRecesso(h)) : [];
+  const aud = audiencias().filter((a) => a.situacao === 'AGENDADA' && a.data >= h && a.data <= addDias(h, 7));
+  const cs = cumprimentos().filter((c) => c.situacao === 'A_EXECUTAR');
+  const t = (rot, val, sub, i, cls, go, sit) => '<div class="card kpi ' + (cls || '') + '" data-go="' + go + '"' + (sit ? ' data-sit="' + sit + '"' : '') + ' title="' + esc(rot) + '"><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div><div class="ico">' + ic(i, 's') + '</div></div>';
+  return '<div class="sec-tit">Destaques <span class="mut pq" style="font-weight:400;margin-left:6px">o que pede ação antecipada</span></div><div class="kpis dest">' +
+    t('Liminar deferida', lim.size, lim.size ? (limProx ? 'próx. prazo ' + fdata(limProx.fim) + ' · ' + esc(limProx.processo.slice(0, 7)) : 'processos com prazo aberto') : 'nenhum processo', 'alerta', lim.size ? 'bad' : '', 'liminar') +
+    t('Memorandos a enviar', memA.length, memA15.length + ' com prazo em até 15 dias', 'memo', memA15.length ? 'bad' : memA.length ? 'warn' : '', 'memoA') +
+    t('Aguardando retorno', memE.length, memAtr.length ? memAtr.length + ' com retorno atrasado' : memHoje.length ? memHoje.length + ' retornam em até 3 dias' : 'nenhum atrasado', 'memo', memAtr.length ? 'bad' : 'info', 'memoE') +
+    t('Peças sem minuta', semMin.length, semMin5.length + ' vencem em até 5 dias · janela 15 dias', 'doc', semMin5.length ? 'bad' : semMin.length ? 'warn' : '', 'semminuta') +
+    t('Defesas em aberto', def.length, def.length ? defSem.length + ' sem minuta (contestação, informações, impugnação)' : 'contestação, informações, impugnação', 'martelo', defSem.length ? 'warn' : '', 'defesa') +
+    t('Ciência / CRP a dar', crp.length, 'prazos abertos sem peça – liberar logo', 'check', crp.length ? 'info' : '', 'crp') +
+    (ed3.length ? t('ED em até 3 dias', ed3.length, 'embargos de declaração vencendo', 'ed', 'bad', 'ed') : '') +
+    (rec.length ? t('Até o recesso', rec.length, 'vencem até ' + fdata(fimRecesso(h)) + ' (recesso 20/12 a 20/01)', 'agenda', 'warn', 'recesso') : '') +
+    t('Aguardando abertura', ag.length, triar.length ? triar.length + ' ainda a triar' : 'intimações expedidas, sem prazo', 'hoje', triar.length ? 'warn' : '', 'aguard', 'pendentes') +
+    t('Audiências e perícias', aud.length, 'nos próximos 7 dias', 'agenda', aud.length ? 'warn' : '', 'aud') +
+    t('Honorários a executar', cs.length, 'cumprimentos de sentença', 'martelo', cs.length ? 'info' : '', 'cumpr') +
+    '</div>' + (lim.size ? '<div class="card" style="margin-top:12px"><div class="cab"><h2>Processos com liminar deferida</h2></div><div class="lista">' + ab.filter((p) => lp.has(p.processo)).sort((a, b) => String(a.fim || '9').localeCompare(String(b.fim || '9'))).map(itemPrazo).join('') + '</div></div>' : '');
+}
+document.head.insertAdjacentHTML('beforeend', '<style>.kpis.dest{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important}.kpis.dest .kpi .sub{white-space:normal;line-height:1.35}@media(max-width:760px){.kpis.dest{grid-template-columns:repeat(2,minmax(0,1fr))!important}}</style>');
 VIEWS.prazos = function () { telaPrazos(false); };
 VIEWS.antigos = function () { telaPrazos(true); };
 const NATUREZAS = [
@@ -411,6 +452,7 @@ function telaPrazos(ant) {
     prosseg: ['Diga sobre o prosseguimento', PROSSEG], ed: ['Com ED', (p) => p.ed_cabivel], memoenv: ['Enviar memorando', (p) => p.memo_status === 'A_ENVIAR'], memorec: ['Memorando a receber', (p) => p.memo_status === 'ENVIADO']
   } : {
     hoje: ['Hoje', (p) => p.fim === h], '7dias': ['7 dias', (p) => p.fim && p.fim >= h && p.fim <= addDias(h, 7)],
+    liminar: ['Liminar deferida', ((lp) => (p) => lp.has(p.processo))(procLiminar())], semminuta: ['Sem minuta (15 dias)', (p) => semMinuta(p, h)], defesa: ['Defesas', ehDefesa], crp: ['Ciência / CRP', ehCiencia], triar: ['A triar', (p) => /^a triar/.test(PV(p))], recesso: ['Até o recesso', (p) => p.fim && p.fim >= h && p.fim <= fimRecesso(h)],
     prosseg: ['Diga sobre o prosseguimento', PROSSEG], ed: ['Com ED', (p) => p.ed_cabivel], memoenv: ['Enviar memorando', (p) => p.memo_status === 'A_ENVIAR'], memorec: ['Memorando a receber', (p) => p.memo_status === 'ENVIADO']
   };
   if (f.marca && !MARCAS[f.marca]) f.marca = '';
