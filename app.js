@@ -337,13 +337,7 @@ VIEWS.inicio = function () {
   const hr = new Date().getHours();
   const kpi = (rot, val, sub, i, cls, go) => '<div class="card kpi ' + (cls || '') + '" data-go="' + go + '"><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div><div class="ico">' + ic(i, 's') + '</div></div>';
   $('#conteudo').innerHTML = '<div class="ola"><h2>' + (hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite') + (nome ? ', ' + esc(nome) : '') + '</h2><p>' + esc(new Date(dt(h).getTime() + 12 * 36e5).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })) + '</p></div>' +
-    '<div class="kpis k5">' +
-    kpi('Vencem hoje', hj.length, fdata(h, true), 'hoje', hj.length ? 'bad' : '', 'hoje') +
-    kpi('Próximos 7 dias', sem7.length, 'até ' + fdata(addDias(h, 7)), 'semana', 'warn', '7dias') +
-    kpi('Prazos abertos', ab.length, '<span class="ln">a fazer ou em elaboração</span>' + linhasTrib(ab), 'lista', '', '') +
-    kpi('Embargos de declaração', ed.length, 'cabíveis e no prazo', 'ed', 'info', 'ed') +
-    kpi('Memorandos', memA.length + memE.length, memA.length + ' a enviar · ' + memE.length + ' aguardando' + (atA.length ? ' · ' + atA.length + ' Atendenet' : ''), 'memo', '', 'memo') +
-    '</div>' + layoutInicio(h, ab) +
+    layoutInicio(h, ab) +
     '<div class="rodape-app">TJRS 1º e 2º graus · TRF4 1º e 2º graus · Junta de Recursos Fiscais</div>';
   $$('[data-go]').forEach((e) => { e.onclick = () => { const g = e.dataset.go; if (g === 'memo' || g === 'memoA' || g === 'memoE') { if (g !== 'memo') { S.fms = g === 'memoA' ? 'A_ENVIAR' : 'ENVIADO'; S.fmt = ''; LS.set('fmemo', { s: S.fms, t: '' }); } location.hash = '#/memorandos'; return; } if (g === 'aud') { S.fau = 'proximas'; location.hash = '#/audiencias'; return; } if (g === 'cumpr') { S.fc = 'A_EXECUTAR'; location.hash = '#/cumprimentos'; return; } if (g === 'aguard' || e.dataset.sit === 'pendentes') { Object.assign(S.f, { sit: 'pendentes', trib: '', marca: g === 'aguard' ? '' : g, nat: '', peca: '', de: '', ate: '', q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; return; } if (g === 'atrasados') { Object.assign(S.fa, { sit: 'abertos', trib: '', marca: '', q: '' }); LS.set('filtrosA', S.fa); location.hash = '#/antigos'; return; } Object.assign(S.f, { sit: 'abertos', trib: '', marca: g, q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; }; });
   ligarListas($('#conteudo')); ligarJunta($('#conteudo'));
@@ -375,7 +369,14 @@ function destaques(h, ab) {
   const TRIBS = [['TJRS1', 'TJRS 1º grau'], ['TJRS2', 'TJRS 2º grau'], ['TRF41', 'TRF4 1º grau'], ['TRF42', 'TRF4 2º grau'], ['TJSC', 'TJSC']];
   const porTrib = (l) => TRIBS.map((x) => '<span class="ln"><span>' + x[1] + '</span><b>' + l.filter((p) => p.tribunal === x[0]).length + '</b></span>').join('');
   const t = (rot, val, sub, i, cls, go, sit) => { const cor = { bad: '#E5484D', warn: '#D1AE6C', info: '#5B8DEF', ok: '#46A758' }[cls] || '#8B929B'; return '<div class="fase3d dst" data-go="' + go + '"' + (sit ? ' data-sit="' + sit + '"' : '') + ' style="--fc:' + cor + '" title="' + esc(rot) + '"><div class="fh"><i></i><span>' + rot + '</span><a>Ver ›</a></div><div class="fn"><b>' + val + '</b></div>' + (/class="ln"/.test(sub) ? '<div class="fsubs">' + sub + '</div>' : '<div class="fd">' + sub + '</div>') + '</div>'; };
+  const hj = ab.filter((p) => p.fim === h), sem7 = ab.filter((p) => p.fim && p.fim > h && p.fim <= addDias(h, 7));
+  const edA = ab.filter((p) => p.ed_cabivel && (!p.ed_prazo || p.ed_prazo >= h)), atA = ab.filter((p) => p.atend_status === 'A_DESPACHAR');
   return '' +
+    t('Vencem hoje', hj.length, fdata(h, true), 'hoje', hj.length ? 'bad' : '', 'hoje') +
+    t('Próximos 7 dias', sem7.length, 'até ' + fdata(addDias(h, 7)), 'semana', sem7.length ? 'warn' : '', '7dias') +
+    t('Prazos abertos', ab.length, '<span class="ln">a fazer ou em elaboração</span>' + linhasTrib(ab), 'lista', '', '') +
+    t('Embargos de declaração', edA.length, 'cabíveis e no prazo', 'ed', edA.length ? 'info' : '', 'ed') +
+    t('Memorandos', memA.length + memE.length, memA.length + ' a enviar · ' + memE.length + ' aguardando' + (atA.length ? ' · ' + atA.length + ' Atendenet' : ''), 'memo', '', 'memo') +
     t('Liminar deferida', lim.size, '<span class="ln">' + limMA + ' com memorando a enviar</span><span class="ln">' + limME + ' com memorando aguardando retorno' + (limAtr ? ' (' + limAtr + ' atrasado' + (limAtr > 1 ? 's' : '') + ')' : '') + '</span>', 'alerta', lim.size ? 'bad' : '', 'liminar') +
     t('Minutas a protocolar', aProt.length, '<span class="ln">em elaboração, vencendo em até 14 dias</span>' + linhasProt, 'doc', aProt.some((p) => p.fim <= addDias(h, 2)) ? 'bad' : aProt.length ? 'warn' : '', 'protocolar') +
     t('Memorandos a enviar', memA.length, memA15.length + ' com prazo em até 15 dias', 'memo', memA15.length ? 'bad' : memA.length ? 'warn' : '', 'memoA') +
