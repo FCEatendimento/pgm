@@ -361,6 +361,10 @@ function destaques(h, ab) {
   const def = abComFim.filter((p) => ehDefesa(p) && p.fim >= h), defSem = def.filter((p) => p.status === 'PENDENTE');
   const crp = abComFim.filter((p) => ehCiencia(p) && p.fim >= h);
   const ag = ab.filter((p) => !p.fim), triar = ab.filter((p) => /^a triar/.test(PV(p)));
+  const aProt = abComFim.filter((p) => p.status === 'EM_ELABORACAO' && p.fim >= h && p.fim <= addDias(h, 13));
+  const aProtDias = Object.entries(gConta(aProt, (p) => p.fim).reduce((o, x) => (o[x.rot] = x.n, o), {})).sort((a, b) => a[0].localeCompare(b[0]));
+  const DSEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  const linhasProt = aProtDias.length ? aProtDias.map(([d, n]) => '<span class="ln"><span>' + (d === h ? 'hoje' : d === addDias(h, 1) ? 'amanhã' : DSEM[dt(d).getUTCDay()]) + ' ' + fdata(d).slice(0, 5) + '</span><b>' + n + '</b></span>').join('') : '<span class="ln">nenhuma minuta pendente de protocolo nos próximos 14 dias</span>';
   const ed3 = ab.filter((p) => p.ed_cabivel && p.ed_prazo && p.ed_prazo >= h && p.ed_prazo <= addDias(h, 3));
   const rec = emRecessoJanela(h) ? abComFim.filter((p) => p.fim >= h && p.fim <= fimRecesso(h)) : [];
   const aud = audiencias().filter((a) => a.situacao === 'AGENDADA' && (!a.data || a.data >= h)), aud7 = aud.filter((a) => a.data && a.data <= addDias(h, 7));
@@ -373,6 +377,7 @@ function destaques(h, ab) {
   const t = (rot, val, sub, i, cls, go, sit) => '<div class="card kpi ' + (cls || '') + '" data-go="' + go + '"' + (sit ? ' data-sit="' + sit + '"' : '') + ' title="' + esc(rot) + '"><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div><div class="ico">' + ic(i, 's') + '</div></div>';
   return '<div class="sec-tit">Destaques <span class="mut pq" style="font-weight:400;margin-left:6px">o que pede ação antecipada</span></div><div class="kpis dest">' +
     t('Liminar deferida', lim.size, '<span class="ln">' + limMA + ' com memorando a enviar</span><span class="ln">' + limME + ' com memorando aguardando retorno' + (limAtr ? ' (' + limAtr + ' atrasado' + (limAtr > 1 ? 's' : '') + ')' : '') + '</span>', 'alerta', lim.size ? 'bad' : '', 'liminar') +
+    t('Minutas a protocolar', aProt.length, '<span class="ln">em elaboração, vencendo em até 14 dias</span>' + linhasProt, 'doc', aProt.some((p) => p.fim <= addDias(h, 2)) ? 'bad' : aProt.length ? 'warn' : '', 'protocolar') +
     t('Memorandos a enviar', memA.length, memA15.length + ' com prazo em até 15 dias', 'memo', memA15.length ? 'bad' : memA.length ? 'warn' : '', 'memoA') +
     t('Peças sem minuta', semMin.length, '<span class="ln">' + semMin5.length + ' vencem em até 5 dias · janela 15 dias</span>' + porTrib(semMin), 'doc', semMin5.length ? 'bad' : semMin.length ? 'warn' : '', 'semminuta') +
     t('Defesas em aberto', def.length, def.length ? defSem.length + ' sem minuta (contestação, informações, impugnação)' : 'contestação, informações, impugnação', 'martelo', defSem.length ? 'warn' : '', 'defesa') +
@@ -450,7 +455,7 @@ function telaPrazos(ant) {
     prosseg: ['Diga sobre o prosseguimento', PROSSEG], ed: ['Com ED', (p) => p.ed_cabivel], memoenv: ['Enviar memorando', (p) => p.memo_status === 'A_ENVIAR'], memorec: ['Memorando a receber', (p) => p.memo_status === 'ENVIADO']
   } : {
     hoje: ['Hoje', (p) => p.fim === h], '7dias': ['7 dias', (p) => p.fim && p.fim >= h && p.fim <= addDias(h, 7)],
-    liminar: ['Liminar deferida', ((lp) => (p) => lp.has(p.processo))(procLiminar())], semminuta: ['Sem minuta (15 dias)', (p) => semMinuta(p, h)], defesa: ['Defesas', ehDefesa], crp: ['Ciência / CRP', ehCiencia], triar: ['A triar', (p) => /^a triar/.test(PV(p))], recesso: ['Até o recesso', (p) => p.fim && p.fim >= h && p.fim <= fimRecesso(h)],
+    protocolar: ['Minutas a protocolar (14 dias)', (p) => p.status === 'EM_ELABORACAO' && p.fim && p.fim >= h && p.fim <= addDias(h, 13)], liminar: ['Liminar deferida', ((lp) => (p) => lp.has(p.processo))(procLiminar())], semminuta: ['Sem minuta (15 dias)', (p) => semMinuta(p, h)], defesa: ['Defesas', ehDefesa], crp: ['Ciência / CRP', ehCiencia], triar: ['A triar', (p) => /^a triar/.test(PV(p))], recesso: ['Até o recesso', (p) => p.fim && p.fim >= h && p.fim <= fimRecesso(h)],
     prosseg: ['Diga sobre o prosseguimento', PROSSEG], ed: ['Com ED', (p) => p.ed_cabivel], memoenv: ['Enviar memorando', (p) => p.memo_status === 'A_ENVIAR'], memorec: ['Memorando a receber', (p) => p.memo_status === 'ENVIADO']
   };
   if (f.marca && !MARCAS[f.marca]) f.marca = '';
@@ -784,6 +789,74 @@ function gFluxoLigar() {
   $$('[data-gsel]').forEach((r) => { r.onclick = () => { S.gSel = r.dataset.gsel; VIEWS.gestao(); }; });
 }
 document.head.insertAdjacentHTML('beforeend', '<style>.gf-ctl{gap:8px!important;flex-wrap:wrap}.gf-ctl .sel{width:auto;height:36px;min-width:210px;font-size:13px}.gf-sec{padding:6px 0 4px}.gf-t{display:flex;align-items:center;gap:7px;font-weight:650;font-size:14px;margin:6px 0 10px}.gf-ks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}.gf-k{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface-2);display:flex;flex-direction:column;gap:2px}.gf-k span{font-size:12px;color:var(--mut);font-weight:600}.gf-k b{font-size:22px;font-variant-numeric:tabular-nums}.gf-k small{font-size:11.5px;color:var(--mut);line-height:1.3}.gf-k.ok b{color:var(--ok)}.gf-k.warn b{color:var(--warn)}svg.gr .gr-sel{fill:var(--gold-soft)}.gf-vaz{display:flex;gap:12px;align-items:center;padding:14px;border:1px dashed var(--line-2);border-radius:12px;color:var(--mut);font-size:13px}.gf-vaz p{margin:0}@media(max-width:760px){.gf-ks{grid-template-columns:1fr 1fr 1fr;gap:6px}.gf-k b{font-size:18px}.gf-ctl .sel{min-width:0;width:100%}}</style>');
+const ASSUNTOS = ['IPTU', 'ISSQN', 'ITBI', 'Taxas e contribuições', 'Multas e dívida não tributária', 'Dívida ativa (geral)', 'Honorários e sucumbência', 'Embargos de terceiro', 'Imunidade e isenção', 'Saúde', 'Servidores', 'Responsabilidade civil', 'Licitações e contratos', 'Urbanismo e meio ambiente', 'Outros'];
+const RESULT = { PROCEDENTE: ['Procedente / provido', 'var(--ok)'], PARCIAL: ['Parcialmente procedente / provido', 'var(--warn)'], IMPROCEDENTE: ['Improcedente / desprovido', 'var(--bad)'], EXTINTO: ['Extinto sem resolução do mérito', 'var(--mut-2)'], OUTRO: ['Outro', '#3F6FB5'] };
+const gProcs = (lista) => { const m = new Map(); lista.forEach((p) => { const k = p.processo; const v = Number(p.valor_causa) || 0; const a = m.get(k); if (!a) m.set(k, { processo: k, parte: p.parte, tribunal: p.tribunal, assunto: p.assunto || 'Outros', valor: v, regs: [p] }); else { a.regs.push(p); if (v > a.valor) a.valor = v; if (!a.assunto || a.assunto === 'Outros') a.assunto = p.assunto || a.assunto; } }); return [...m.values()]; };
+const fmK = (v) => v >= 1e6 ? 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi' : v >= 1e3 ? 'R$ ' + (v / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' mil' : fmoeda(v);
+const gExpl = (t) => '<p class="g-ex">' + t + '</p>';
+function gValoresHTML(todos) {
+  const ab = gProcs(todos.filter(aberto)), com = ab.filter((x) => x.valor > 0), tot = com.reduce((s, x) => s + x.valor, 0);
+  const porAss = {}, porTrib = {}; com.forEach((x) => { porAss[x.assunto] = (porAss[x.assunto] || 0) + x.valor; const t = TRIB_CURTO[x.tribunal] || x.tribunal; porTrib[t] = (porTrib[t] || 0) + x.valor; });
+  const FX = [['até R$ 10 mil', 0, 1e4], ['R$ 10 mil a 100 mil', 1e4, 1e5], ['R$ 100 mil a 1 milhão', 1e5, 1e6], ['acima de R$ 1 milhão', 1e6, Infinity]];
+  const barV = (obj) => { const it = Object.entries(obj).sort((a, b) => b[1] - a[1]); const mx = Math.max(1, ...it.map((x) => x[1])); return it.length ? '<div class="hb">' + it.map(([k, v]) => '<div class="hb-l"><span class="hb-r" title="' + esc(k) + '">' + esc(k) + '</span><span class="hb-t"><i style="width:' + (v / mx * 100).toFixed(1) + '%;background:var(--gold)"></i></span><b style="white-space:nowrap">' + fmK(v) + '</b><span class="hb-p">' + gPct(v, tot) + '%</span></div>').join('') + '</div>' : vazio('Nenhum processo em aberto com valor da causa informado.', 'tabela'); };
+  const top = com.slice().sort((a, b) => b.valor - a.valor).slice(0, 8);
+  return '<div class="sec-tit">Valores das causas</div>' +
+    gExpl('Soma do <b>valor da causa</b> dos processos com prazo em aberto (cada processo contado uma vez, pelo maior valor informado). O valor vem da capa do eproc e é gravado na triagem ou no formulário do prazo. <b>Cobertura</b> = quantos processos em aberto já têm o valor informado – enquanto estiver baixa, os totais ficam subestimados.') +
+    '<div class="kpis g-kpis">' +
+      '<div class="card kpi"><div class="rot">Valor em discussão</div><div class="val">' + fmK(tot) + '</div><div class="sub">' + fmoeda(tot) + '</div></div>' +
+      '<div class="card kpi' + (gPct(com.length, ab.length) < 80 ? ' warn' : '') + '"><div class="rot">Cobertura</div><div class="val">' + gPct(com.length, ab.length) + '%</div><div class="sub">' + com.length + ' de ' + ab.length + ' processos em aberto com valor</div></div>' +
+      '<div class="card kpi"><div class="rot">Valor médio por processo</div><div class="val">' + (com.length ? fmK(tot / com.length) : '–') + '</div><div class="sub">média entre os que têm valor</div></div>' +
+      '<div class="card kpi"><div class="rot">Maior causa</div><div class="val">' + (top[0] ? fmK(top[0].valor) : '–') + '</div><div class="sub">' + (top[0] ? esc(top[0].processo.slice(0, 7)) + ' · ' + esc(top[0].parte || '') : 'sem dados') + '</div></div>' +
+    '</div>' +
+    '<div class="grid g2" style="margin-top:16px"><div class="card"><div class="cab"><h2>Por assunto</h2><div class="dir pp mut">valor e % do total</div></div><div class="corpo">' + barV(porAss) + '</div></div>' +
+    '<div class="card"><div class="cab"><h2>Por tribunal</h2><div class="dir pp mut">valor e % do total</div></div><div class="corpo">' + barV(porTrib) + '</div></div></div>' +
+    '<div class="grid g2" style="margin-top:16px"><div class="card"><div class="cab"><h2>Faixas de valor</h2><div class="dir pp mut">nº de processos</div></div><div class="corpo">' + gBarrasH(FX.map((f) => ({ rot: f[0], n: com.filter((x) => x.valor >= f[1] && x.valor < f[2]).length })).filter((x) => x.n), '#3F6FB5') + '</div></div>' +
+    '<div class="card"><div class="cab"><h2>Maiores causas em aberto</h2></div><div class="lista">' + (top.map((x) => '<div class="item clic" data-p="' + esc(x.regs[0].id) + '"><div class="mid"><div class="t"><span class="num">' + esc(x.processo) + '</span></div><div class="d">' + esc(x.parte || '') + ' · ' + esc(x.assunto) + '</div></div><div class="dir"><b>' + fmoeda(x.valor) + '</b></div></div>').join('') || vazio('Sem valores informados.', 'tabela')) + '</div></div></div>';
+}
+function gTemasHTML(todos) {
+  const procs = gProcs(todos);
+  const ass = {}; procs.forEach((x) => { (ass[x.assunto] = ass[x.assunto] || { proc: 0, ab: 0, val: 0, res: {} }); const a = ass[x.assunto]; a.proc++; if (x.regs.some(aberto)) { a.ab++; a.val += x.valor; } const dec = x.regs.filter((p) => p.resultado).sort((p, q) => String(q.fim || '').localeCompare(String(p.fim || ''))); if (dec[0]) a.res[dec[0].resultado] = (a.res[dec[0].resultado] || 0) + 1; });
+  const ks = Object.keys(RESULT);
+  const linhas = Object.entries(ass).sort((a, b) => b[1].proc - a[1].proc).map(([k, a]) => { const nd = ks.reduce((s, r) => s + (a.res[r] || 0), 0); const pc = (r) => nd ? gPct(a.res[r] || 0, nd) + '%' : '–';
+    return '<tr><td><b>' + esc(k) + '</b></td><td class="num-r">' + a.proc + '</td><td class="num-r">' + a.ab + '</td><td class="num-r nw">' + (a.val ? fmK(a.val) : '–') + '</td><td class="num-r">' + nd + '</td><td class="num-r c-ok">' + pc('PROCEDENTE') + '</td><td class="num-r">' + pc('PARCIAL') + '</td><td class="num-r c-bad">' + pc('IMPROCEDENTE') + '</td><td class="num-r mut">' + pc('EXTINTO') + '</td><td style="min-width:120px">' + (nd ? '<div class="g-stk">' + ks.filter((r) => a.res[r]).map((r) => '<i title="' + esc(RESULT[r][0]) + ': ' + a.res[r] + '" style="width:' + (a.res[r] / nd * 100).toFixed(1) + '%;background:' + RESULT[r][1] + '"></i>').join('') + '</div>' : '') + '</td></tr>'; }).join('');
+  const totRes = {}; procs.forEach((x) => { const dec = x.regs.filter((p) => p.resultado).sort((p, q) => String(q.fim || '').localeCompare(String(p.fim || ''))); if (dec[0]) totRes[dec[0].resultado] = (totRes[dec[0].resultado] || 0) + 1; });
+  const ndT = Object.values(totRes).reduce((s, v) => s + v, 0);
+  return '<div class="sec-tit">Temas e resultados das decisões</div>' +
+    gExpl('Cada processo é contado uma vez, pelo assunto e pela <b>decisão mais recente</b> registrada. "Procedente / provido" e "improcedente / desprovido" descrevem o resultado do pedido ou do recurso julgado – não necessariamente a favor ou contra o Município: numa execução fiscal ou num recurso do Município, "provido" é favorável; numa ação contra o Município, "procedente" é desfavorável. Os percentuais são calculados sobre os processos com decisão classificada (coluna "Decisões"). O assunto e o resultado são preenchidos automaticamente a partir do teor e podem ser corrigidos no formulário do prazo.') +
+    '<div class="kpis g-kpis">' + ks.filter((r) => r !== 'OUTRO').map((r) => '<div class="card kpi"><div class="rot">' + esc(RESULT[r][0]) + '</div><div class="val">' + gPct(totRes[r] || 0, ndT) + '%</div><div class="sub">' + (totRes[r] || 0) + ' de ' + ndT + ' decisões classificadas</div></div>').join('') + '</div>' +
+    '<div class="card tab-wrap" style="max-height:none;margin-top:16px"><table class="tab g-tab"><thead><tr><th>Assunto</th><th class="num-r">Processos</th><th class="num-r">Em aberto</th><th class="num-r">Valor em aberto</th><th class="num-r">Decisões</th><th class="num-r">Procedente / provido</th><th class="num-r">Parcial</th><th class="num-r">Improcedente / desprovido</th><th class="num-r">Extinto</th><th>Distribuição</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+}
+function gOutrosHTML(todos, h) {
+  const conc = todos.filter((p) => ['PROTOCOLADO', 'CIENCIA'].includes(p.status) && p.fim && p.concluido_em && !/Baixa automática/.test(p.observacoes || ''));
+  const ant = conc.map((p) => Math.round((dt(p.fim) - dt(gDiaSP(p.concluido_em))) / 864e5)).filter((n) => n >= 0 && n < 120);
+  const media = ant.length ? (ant.reduce((s, n) => s + n, 0) / ant.length) : 0, ult = ant.filter((n) => n === 0).length, folga = ant.filter((n) => n >= 3).length;
+  const auto = todos.filter((p) => /Baixa automática/.test(p.observacoes || '')).length;
+  const env = todos.filter((p) => p.memo_enviado_em && p.memo_respondido_em), tResp = env.map((p) => (new Date(p.memo_respondido_em) - new Date(p.memo_enviado_em)) / 864e5).filter((n) => n >= 0);
+  const cri = todos.filter((p) => p.memo_criado_em && p.memo_enviado_em), tEnv = cri.map((p) => (new Date(p.memo_enviado_em) - new Date(p.memo_criado_em)) / 864e5).filter((n) => n >= 0);
+  const noPrazo = env.filter((p) => !p.memo_retorno || gDiaSP(p.memo_respondido_em) <= p.memo_retorno).length;
+  const atrasoMemo = todos.filter((p) => aberto(p) && p.memo_status === 'ENVIADO' && p.memo_retorno && p.memo_retorno < h).length;
+  const prox30 = todos.filter((p) => aberto(p) && p.fim && p.fim >= h && p.fim <= addDias(h, 30)), pico = gConta(prox30, (p) => p.fim)[0];
+  const ab = todos.filter((p) => aberto(p)), ag = ab.filter((p) => !p.fim), triar = ab.filter((p) => /^a triar/i.test(p.providencia || ''));
+  const semProv = ab.filter((p) => !p.providencia).length, crp = ab.filter((p) => /^ci[eê]ncia|crp/i.test(p.providencia || '')).length;
+  const edAb = ab.filter((p) => p.ed_cabivel).length;
+  const med = (l) => l.length ? (l.reduce((s, n) => s + n, 0) / l.length).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '–';
+  const k = (rot, val, sub, cls) => '<div class="card kpi' + (cls ? ' ' + cls : '') + '"><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div></div>';
+  return '<div class="sec-tit">Antecedência, memorandos e carga</div>' +
+    gExpl('<b>Antecedência</b> = dias entre a data em que o prazo foi marcado como protocolado/ciência e o prazo fatal (0 = feito no último dia). Não entram as baixas automáticas, porque nelas a data real do protocolo não é conhecida. <b>Memorandos</b>: tempo entre o pedido ser criado e enviado, e entre o envio e a resposta da secretaria; "no prazo" = respondido até a data de retorno combinada (uma semana antes do prazo fatal).') +
+    '<div class="kpis g-kpis">' +
+      k('Antecedência média', ant.length ? med(ant) + ' dias' : '–', ant.length + ' prazos cumpridos com data registrada', media && media < 2 ? 'warn' : '') +
+      k('Feitos no último dia', gPct(ult, ant.length) + '%', ult + ' de ' + ant.length + ' · com folga de 3+ dias: ' + gPct(folga, ant.length) + '%', gPct(ult, ant.length) > 30 ? 'warn' : '') +
+      k('Baixas automáticas', gNum(auto), 'vencidos sem baixa manual no app – conferir se foram de fato cumpridos', auto ? 'warn' : '') +
+      k('Pico de vencimentos', pico ? pico.n + ' prazos' : '–', pico ? 'em ' + fdata(pico.rot, true) + ' (próximos 30 dias)' : 'sem prazos nos próximos 30 dias', pico && pico.n >= 8 ? 'warn' : '') +
+      k('Memorando: criação → envio', tEnv.length ? med(tEnv) + ' dias' : '–', tEnv.length + ' memorandos enviados', '') +
+      k('Memorando: envio → resposta', tResp.length ? med(tResp) + ' dias' : '–', tResp.length + ' respondidos · ' + gPct(noPrazo, env.length) + '% no prazo combinado', '') +
+      k('Retornos atrasados', gNum(atrasoMemo), 'memorandos enviados com data de retorno vencida', atrasoMemo ? 'bad' : '') +
+      k('Triagem pendente', gNum(triar.length + semProv), triar.length + ' "a triar" · ' + semProv + ' sem providência · ' + ag.length + ' aguardando abertura', triar.length ? 'warn' : '') +
+      k('Ciência / CRP em aberto', gNum(crp), gPct(crp, ab.length) + '% dos prazos abertos – liberar com antecedência', '') +
+      k('ED cabíveis em aberto', gNum(edAb), 'embargos de declaração ainda não opostos', edAb ? 'info' : '') +
+    '</div>';
+}
+document.head.insertAdjacentHTML('beforeend', '<style>.g-ex{font-size:13px;line-height:1.5;color:var(--mut);margin:-4px 2px 12px;max-width:980px}.g-ex b{color:var(--txt);font-weight:600}.g-stk{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}.g-stk i{display:block;height:100%}.g-tab td.c-ok{color:var(--ok)}.g-tab td.c-bad{color:var(--bad)}</style>');
 VIEWS.gestao = function () {
   titulo('Gestão do trabalho');
   $('#conteudo').classList.remove('largo');
@@ -821,24 +894,28 @@ VIEWS.gestao = function () {
   $('#conteudo').innerHTML =
     '<div class="g-top"><div class="seg" role="group" aria-label="Período">' + Object.entries(GEST_PER).map(([k, t]) => '<button data-gper="' + k + '" class="' + (per === k ? 'on' : '') + '">' + t + '</button>').join('') + '</div><span class="pp mut">Período: ' + fdata(ini) + ' a ' + fdata(h) + ' · prazos fatais já vencidos ou de hoje</span></div>' +
     '<div class="kpis g-kpis">' +
-      kpi('Prazos no período', gNum(noPer.length), 'com vencimento até hoje', '', 'prazos') +
-      kpi('Cumpridos', gNum(cumpr), taxa + '% dos prazos do período', taxa >= mt.cumpr ? '' : 'warn') +
-      kpi('Peças protocoladas', gNum(prot), 'no período', '') +
-      kpi('Ciência / CRP', gNum(cien), 'no período', '') +
-      kpi('Vencidos sem cumprimento', gNum(vencidos.length), 'acumulado', vencidos.length > mt.vencidos ? 'bad' : '', 'antigos') +
-      kpi('Prazos em aberto', gNum(abertosTot), prox7 + ' vencem em 7 dias', prox7 ? 'warn' : '', 'prazos') +
-      kpi('Memorandos a enviar', gNum(memoPend), memoAg + ' aguardando resposta', memoPend > mt.memos ? 'warn' : '', 'memorandos') +
-      kpi('Tarefas em aberto', gNum(tarAb), 'lista de tarefas', '', 'ordens') +
+      kpi('Prazos no período', gNum(noPer.length), 'prazos fatais entre ' + fdata(ini) + ' e hoje (exceto arquivados)', '', 'prazos') +
+      kpi('Cumpridos', gNum(cumpr), taxa + '% = cumpridos ÷ prazos do período', taxa >= 95 ? '' : 'warn') +
+      kpi('Peças protocoladas', gNum(prot), gPct(prot, noPer.length) + '% dos prazos do período exigiram peça', '') +
+      kpi('Ciência / CRP', gNum(cien), gPct(cien, noPer.length) + '% dos prazos do período só pediram ciência', '') +
+      kpi('Vencidos sem cumprimento', gNum(vencidos.length), 'acumulado: venceram e seguem pendentes no app', vencidos.length ? 'bad' : '', 'antigos') +
+      kpi('Prazos em aberto', gNum(abertosTot), 'a vencer · ' + prox7 + ' nos próximos 7 dias', prox7 ? 'warn' : '', 'prazos') +
+      kpi('Memorandos a enviar', gNum(memoPend), memoAg + ' já enviados aguardando resposta', memoPend ? 'warn' : '', 'memorandos') +
+      kpi('Tarefas em aberto', gNum(tarAb), 'itens abertos da lista de tarefas', '', 'ordens') +
     '</div>' +
+    gExpl('<b>Período</b> = escolha acima; considera só prazos cujo prazo fatal já passou ou é hoje. <b>Cumpridos</b> = protocolados + ciência/CRP; o percentual mostra quanto do período foi efetivamente baixado (meta de referência: 95%). <b>Peças</b> e <b>ciência</b> somam o total de cumpridos e indicam quanto do trabalho exigiu redação. <b>Vencidos sem cumprimento</b> não depende do período: conta tudo o que venceu e continua pendente.') +
     gFluxoHTML() +
     '<div class="grid g2" style="margin-top:16px">' +
-      '<div class="card"><div class="cab"><h2>Metas de ' + esc(MESES[+mesAt.slice(5, 7) - 1].toLowerCase()) + '</h2><div class="dir"><button class="btn sm fant" id="gmetas">' + ic('editar', 's') + '<span>Editar metas</span></button></div></div><div class="corpo">' +
-        meta('Peças protocoladas no mês', protMes, mt.pecas) + meta('Ciências / CRP no mês', crpMes, mt.crp) + meta('Prazos do mês cumpridos', taxaMes, mt.cumpr, false, '%') +
-        meta('Prazos vencidos sem cumprimento', vencidos.length, mt.vencidos, true) + meta('Memorandos pendentes de envio', memoPend, mt.memos, true) +
+      '<div class="card"><div class="cab"><h2>Carga das próximas semanas</h2><div class="dir pp mut">prazos em aberto por semana</div></div><div class="corpo">' + gBarrasV(sem, [{ nome: 'Prazos', cor: 'var(--gold)' }]) + gExpl('Cada barra = prazos em aberto com vencimento na semana que começa na data indicada (hoje + 7 dias, e assim por diante). Semanas altas pedem antecipação das minutas.') + '</div></div>' +
+      '<div class="card"><div class="cab"><h2>Mês corrente (' + esc(MESES[+mesAt.slice(5, 7) - 1].toLowerCase()) + ')</h2></div><div class="corpo">' +
+        '<div class="mt"><div class="mt-c"><span>Prazos do mês já vencidos ou de hoje</span><b>' + gNum(doMes.length) + '</b></div></div>' +
+        '<div class="mt"><div class="mt-c"><span>Peças protocoladas</span><b>' + gNum(protMes) + '</b></div></div>' +
+        '<div class="mt"><div class="mt-c"><span>Ciências / CRP</span><b>' + gNum(crpMes) + '</b></div></div>' +
+        '<div class="mt"><div class="mt-c"><span>Cumprimento do mês</span><b>' + taxaMes + '%</b></div><div class="mt-b"><i class="' + (taxaMes >= 95 ? 'ok' : '') + '" style="width:' + Math.max(2, taxaMes) + '%"></i></div></div>' +
+        gExpl('Cumprimento do mês = (peças + ciências) ÷ prazos do mês com vencimento até hoje.') +
       '</div></div>' +
-      '<div class="card"><div class="cab"><h2>Carga das próximas semanas</h2><div class="dir pp mut">prazos em aberto por semana</div></div><div class="corpo">' + gBarrasV(sem, [{ nome: 'Prazos', cor: 'var(--gold)' }]) + '</div></div>' +
     '</div>' +
-    '<div class="card" style="margin-top:16px"><div class="cab"><h2>Produção mensal</h2><div class="dir pp mut">prazos pelo mês do vencimento · últimos 12 meses</div></div><div class="corpo">' + gBarrasV(cols, SER, null, 1180) + '</div></div>' +
+    '<div class="card" style="margin-top:16px"><div class="cab"><h2>Produção mensal</h2><div class="dir pp mut">prazos pelo mês do vencimento · últimos 12 meses</div></div><div class="corpo">' + gBarrasV(cols, SER, null, 1180) + gExpl('Cada mês mostra os prazos pelo mês do prazo fatal: dourado = peça protocolada, azul = ciência/CRP, vermelho = venceu sem baixa, cinza = ainda a vencer.') + '</div></div>' +
     '<div class="grid g2" style="margin-top:16px">' +
       '<div class="card"><div class="cab"><h2>Peças do período</h2><div class="dir pp mut">clique para filtrar os prazos</div></div><div class="corpo">' + gBarrasH(gConta(noPer, peca).slice(0, 12), 'var(--gold)', 'peca') + '</div></div>' +
       '<div class="card"><div class="cab"><h2>Natureza das ações</h2><div class="dir pp mut">período</div></div><div class="corpo">' + gBarrasH(gConta(noPer, natureza).slice(0, 12), '#3F6FB5', 'nat') + '</div></div>' +
@@ -847,17 +924,14 @@ VIEWS.gestao = function () {
       '<div class="card"><div class="cab"><h2>Por tribunal</h2><div class="dir pp mut">período</div></div><div class="corpo">' + gBarrasH(gConta(noPer, (p) => TRIB_CURTO[p.tribunal] || p.tribunal || '—').map((x) => Object.assign(x, { k: Object.keys(TRIB_CURTO).find((k) => TRIB_CURTO[k] === x.rot) || '' })), 'var(--navy-2)', 'trib') + '</div></div>' +
       '<div class="card"><div class="cab"><h2>Memorandos por secretaria</h2><div class="dir pp mut">a enviar e aguardando resposta</div></div><div class="corpo">' + gBarrasH(gConta(todos.filter((p) => p.memo_status === 'A_ENVIAR' || p.memo_status === 'ENVIADO'), (p) => String(p.memo_secretaria || 'Secretaria não informada').split(/\s+[–-]\s+/)[0].trim() || 'Secretaria não informada').slice(0, 10), 'var(--warn)') + '</div></div>' +
     '</div>' +
+    gValoresHTML(todos) + gTemasHTML(todos) + gOutrosHTML(todos, h) +
     '<div class="sec-tit">Resumo mês a mês</div><div class="card tab-wrap" style="max-height:none"><table class="tab g-tab"><thead><tr><th>Mês</th><th class="num-r">Prazos</th><th class="num-r">Protocolados</th><th class="num-r">Ciência / CRP</th><th class="num-r">Vencidos s/ cumprimento</th><th class="num-r">Cumprimento</th></tr></thead><tbody>' + linhasMes + '</tbody></table></div>' +
-    '<p class="pp mut" style="margin:10px 2px">Os números vêm dos prazos cadastrados no painel (situação e data do prazo fatal). As metas ficam salvas neste aparelho.</p>';
+    '<p class="pp mut" style="margin:10px 2px">Os números vêm dos prazos cadastrados no painel (situação, data do prazo fatal, valor da causa, assunto e resultado). Coluna "Cumprimento" = (protocolados + ciência) ÷ (prazos do mês já vencidos).</p>';
   $$('[data-gper]').forEach((b) => { b.onclick = () => { S.gPer = b.dataset.gper; LS.set('gPer', S.gPer); VIEWS.gestao(); }; });
   gFluxoLigar();
   $$('[data-gg]').forEach((k) => { k.onclick = () => { location.hash = '#/' + k.dataset.gg; }; });
   $$('[data-gl]').forEach((l) => { l.onclick = () => { const g = l.dataset.gl, v = l.dataset.gv; Object.assign(S.f, { sit: 'todos', trib: '', marca: '', nat: '', peca: '', q: '', de: ini, ate: h }); S.f[g] = v; LS.set('filtros', S.f); Object.assign(S.fa, { sit: 'todos', trib: '', marca: '', nat: '', peca: '', q: '', de: ini, ate: h }); S.fa[g] = v; LS.set('filtrosA', S.fa); location.hash = '#/antigos'; }; });
-  $('#gmetas').onclick = () => {
-    const m = gMetas(), cp = (k, rot, suf) => '<label>' + rot + '<input class="inp" type="number" min="0" name="' + k + '" value="' + m[k] + '">' + (suf ? '<span class="pp mut">' + suf + '</span>' : '') + '</label>';
-    modal({ titulo: 'Metas mensais', corpo: '<form class="form" id="fmetas">' + cp('pecas', 'Peças protocoladas por mês') + cp('crp', 'Ciências / CRP por mês') + cp('cumpr', 'Prazos cumpridos (%)') + cp('vencidos', 'Máximo de prazos vencidos sem cumprimento') + cp('memos', 'Máximo de memorandos pendentes') + '</form>',
-      botoes: [{ txt: 'Restaurar padrão', cls: 'fant esq', acao: () => { LS.del('metas'); VIEWS.gestao(); } }, { txt: 'Cancelar', valor: null }, { txt: 'Salvar', cls: 'pri', ic: 'check', acao: (v) => { const d = Object.fromEntries(new FormData($('#fmetas', v)).entries()); Object.keys(d).forEach((k) => { d[k] = Math.max(0, +d[k] || 0); }); LS.set('metas', d); VIEWS.gestao(); toast('Metas salvas.'); } }] });
-  };
+  ligarListas($('#conteudo'));
 };
 document.head.insertAdjacentHTML('beforeend', '<style>.g-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 14px}.g-kpis{grid-template-columns:repeat(4,minmax(0,1fr))!important}.g-kpis .kpi .val{font-size:22px}@media(max-width:1100px){.g-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}}@media(max-width:760px){.g-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}' +
   'svg.gr{width:100%;height:auto;display:block}svg.gr .gr-g{stroke:var(--line);stroke-width:1}svg.gr .gr-e{fill:var(--mut);font-size:11px;font-family:var(--sans)}svg.gr .gr-v{fill:var(--txt);font-size:11px;font-weight:650;font-family:var(--sans)}' +
@@ -1847,6 +1921,7 @@ function verPrazo(id) {
     L('Embargos de declaração', p.ed_cabivel ? 'Cabíveis' + (p.ed_prazo ? ' – prazo até <b>' + fdata(p.ed_prazo, true) + '</b>' : '') + (p.ed_obs ? '<br><span class="mut">' + esc(p.ed_obs) + '</span>' : '') : 'Não cabíveis') +
     L('Memorando', p.memo_status && p.memo_status !== 'NAO' ? '<b>' + esc(MEMO_TIPO[tipoMemo(p)][0]) + '</b><br>' + esc(p.memo_secretaria || 'Secretaria não informada') + ' – ' + esc(MEMO[p.memo_status]) + (p.memo_retorno ? '<br><span class="mut">retorno até ' + fdata(p.memo_retorno, true) + '</span>' : '') : 'Não é necessário') +
     (p.atend_status && p.atend_status !== 'NAO' ? L('Atendenet', '<span class="chip ' + (p.atend_status === 'DESPACHADO' ? 'ok' : 'bad') + '">' + esc(ATEND[p.atend_status]) + '</span>' + (p.atend_protocolo ? '<br><span class="mut">' + esc(p.atend_protocolo) + '</span>' : '') + '<br><button class="btn sm" data-asv="' + (p.atend_status === 'A_DESPACHAR' ? 'DESPACHADO">Marcar despachado' : 'A_DESPACHAR">Voltar para a despachar') + '</button>') : '') +
+    L('Valor da causa', p.valor_causa ? fmoeda(p.valor_causa) : '') + L('Assunto', esc(p.assunto)) + L('Resultado', p.resultado && RESULT[p.resultado] ? esc(RESULT[p.resultado][0]) : '') +
     L('Teor', esc(p.teor)) + L('Observações', esc(p.observacoes)) + '</dl>' +
     '<div class="acoesrap">' + (aberto(p)
       ? (p.status === 'PENDENTE' ? '<button class="btn sm" data-st="EM_ELABORACAO">Em elaboração</button>' : '<button class="btn sm" data-st="PENDENTE">Voltar para "a fazer"</button>') + '<button class="btn sm" data-st="PROTOCOLADO">' + ic('check', 's') + 'Protocolado</button><button class="btn sm" data-st="CIENCIA">Ciência dada</button><button class="btn sm fant" data-st="ARQUIVADO">Arquivar</button>'
@@ -1890,6 +1965,10 @@ function editarPrazo(p) {
     '<div class="grupo">Protocolo administrativo – Atendenet (cumprimento de sentença)</div>' +
     '<label>Situação<select class="sel" name="atend_status">' + Object.entries(ATEND).map((e) => o(e, p.atend_status || 'NAO')).join('') + '</select></label>' +
     inp('atend_protocolo', 'Nº do protocolo / data informados pela parte') +
+    '<div class="grupo">Gestão do processo</div>' +
+    inp('valor_causa', 'Valor da causa (R$)', 'text', '', ' inputmode="decimal" placeholder="0,00"') +
+    '<label>Assunto / tema<input class="inp" name="assunto" list="assuntos" value="' + esc(p.assunto || '') + '"><datalist id="assuntos">' + ASSUNTOS.map((a) => '<option value="' + esc(a) + '">').join('') + '</datalist></label>' +
+    '<label>Resultado da decisão<select class="sel" name="resultado"><option value="">Sem decisão de mérito / não classificado</option>' + Object.entries(RESULT).map((e) => o([e[0], e[1][0]], p.resultado || '')).join('') + '</select></label><span></span>' +
     '<div class="grupo">Anotações</div>' +
     '<label class="full">Teor da decisão / intimação<textarea class="inp" name="teor">' + esc(p.teor || '') + '</textarea></label>' +
     '<label class="full">Observações<textarea class="inp" name="observacoes" style="min-height:60px">' + esc(p.observacoes || '') + '</textarea></label></form>';
