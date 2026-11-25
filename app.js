@@ -1794,23 +1794,44 @@ VIEWS.cumprimentos = function () {
   const ativo = (c) => !['PAGO', 'ARQUIVADO'].includes(c.situacao);
   const q = S.qc.trim().toLowerCase();
   const lista = todos.filter((c) => (S.fc === 'todos' || (S.fc === 'ativos' ? ativo(c) : c.situacao === S.fc)) &&
-    (!q || [c.processo, c.devedor, c.classe, c.honorarios, c.observacoes, c.processo_cumprimento].join(' ').toLowerCase().includes(q)));
+    (!q || [c.processo, c.devedor, c.classe, c.honorarios, c.observacoes, c.processo_cumprimento, c.hon_1g, c.hon_tj, c.hon_sup, c.base_calculo, c.inversao].join(' ').toLowerCase().includes(q)));
   const n = (k) => todos.filter((c) => c.situacao === k).length;
   const bt = (v, t, k) => '<button data-fc="' + v + '" class="' + (S.fc === v ? 'on' : '') + '">' + t + (k !== undefined ? '<span class="n">' + k + '</span>' : '') + '</button>';
-  $('#conteudo').innerHTML = '<p class="mut pq" style="margin:14px 2px 0">Processos em que o Município tem honorários sucumbenciais a executar, observados na triagem dos processos. Executar após o trânsito em julgado.</p>' +
+  $('#conteudo').innerHTML = '<p class="mut pq" style="margin:14px 2px 0">Honorários sucumbenciais devidos aos procuradores do Município, em qualquer instância, observados na triagem (inclusive antes do trânsito em julgado e as inversões a favor ou contra). Executar após o trânsito.</p>' +
     '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="qcs" placeholder="Buscar processo, devedor ou observação" value="' + esc(S.qc) + '"></label></div>' +
     '<div class="filtros">' + bt('ativos', 'Ativos', todos.filter(ativo).length) + bt('A_EXECUTAR', 'A executar', n('A_EXECUTAR')) + bt('AGUARDANDO_TRANSITO', 'Aguardando trânsito', n('AGUARDANDO_TRANSITO')) +
     bt('EM_EXECUCAO', 'Em execução', n('EM_EXECUCAO')) + bt('PAGO', 'Pagos', n('PAGO')) + bt('ARQUIVADO', 'Arquivados', n('ARQUIVADO')) + bt('todos', 'Todos') + '</div>' +
-    '<div class="card"><div class="lista">' + (lista.map(itemCumprimento).join('') || vazio('Nenhum processo nesta situação.', 'martelo')) + '</div></div>';
+    (lista.length ? tabelaCumprimentos(lista) : '<div class="card">' + vazio('Nenhum processo nesta situação.', 'martelo') + '</div>');
+  $('#conteudo').classList.toggle('largo', lista.length > 0);
   $$('[data-fc]').forEach((b) => { b.onclick = () => { S.fc = b.dataset.fc; VIEWS.cumprimentos(); }; });
   const qi = $('#qcs'); qi.oninput = () => { S.qc = qi.value; const pos = qi.selectionStart; VIEWS.cumprimentos(); const n2 = $('#qcs'); n2.focus(); n2.setSelectionRange(pos, pos); };
-  $$('[data-cs]').forEach((e) => { e.onclick = (ev) => { if (ev.target.closest('[data-csn]')) return; editarCumprimento(cumprimentos().find((c) => c.id === e.dataset.cs)); }; });
+  $$('[data-cs]').forEach((e) => { e.onclick = (ev) => { if (ev.target.closest('[data-csn]') || ev.target.closest('a')) return; editarCumprimento(cumprimentos().find((c) => c.id === e.dataset.cs)); }; });
   $$('[data-csn]').forEach((b) => { b.onclick = async (ev) => {
     ev.stopPropagation(); b.disabled = true;
     try { const r = await api('cs_situacao', { id: b.dataset.id, situacao: b.dataset.csn }); substituir(S.dados.cumprimentos, r); redesenhar(); toast('Situação: ' + SIT_CS[r.situacao] + '.'); }
     catch (e) { b.disabled = false; toast(e.message, true); }
   }; });
 };
+function tabelaCumprimentos(lista) {
+  const cel = (v, cls) => v ? '<div class="cs-cl' + (cls ? ' ' + cls : '') + '" title="' + esc(v) + '">' + esc(v) + '</div>' : '<span class="mut">—</span>';
+  const inv = (v) => { if (!v) return '<span class="mut">—</span>'; const k = /contra/i.test(v) ? 'bad' : /favor/i.test(v) ? 'ok' : 'warn'; return '<span class="chip ' + k + '">' + (k === 'bad' ? 'Contra' : k === 'ok' ? 'A favor' : 'Verificar') + '</span><div class="cs-cl pp mut" title="' + esc(v) + '">' + esc(v) + '</div>'; };
+  const linhas = lista.map((c, i) => {
+    const prox = c.situacao === 'AGUARDANDO_TRANSITO' ? ['A_EXECUTAR', 'Transitou'] : c.situacao === 'A_EXECUTAR' ? ['EM_EXECUCAO', 'Execução iniciada'] : c.situacao === 'EM_EXECUCAO' ? ['PAGO', 'Marcar pago'] : null;
+    const tr = c.transitado === 'SIM' || !!c.transito;
+    return '<tr data-cs="' + esc(c.id) + '" class="clic">' +
+      '<td class="nw mut">' + (i + 1) + '</td>' +
+      '<td class="cs-proc"><b class="num">' + esc(c.processo) + '</b><div class="pp">' + esc(c.devedor || '—') + '</div>' + (c.processo_cumprimento ? '<div class="pp mut">cumprimento ' + esc(c.processo_cumprimento) + '</div>' : '') + '</td>' +
+      '<td class="nw"><span class="chip nav">' + logoT(c.tribunal) + esc(TRIB_CURTO[c.tribunal] || c.tribunal) + '</span></td>' +
+      '<td>' + cel(c.hon_1g) + '</td><td>' + cel(c.hon_tj) + '</td><td>' + cel(c.hon_sup) + '</td>' +
+      '<td>' + cel(c.base_calculo) + '</td>' +
+      '<td class="nw">' + (c.aliquota ? esc(c.aliquota) : '') + (c.valor ? '<div class="pp"><b>' + fmoeda(c.valor) + '</b></div>' : '') + (!c.aliquota && !c.valor ? '<span class="mut">—</span>' : '') + '</td>' +
+      '<td>' + inv(c.inversao) + '</td>' +
+      '<td class="nw"><span class="chip ' + (COR_CS[c.situacao] || '') + '">' + esc(SIT_CS[c.situacao] || c.situacao) + '</span>' + (prox ? '<div><button class="btn sm cs-bt" data-csn="' + prox[0] + '" data-id="' + esc(c.id) + '">' + prox[1] + '</button></div>' : '') + '</td>' +
+      '<td class="nw">' + (tr ? '<span class="chip ok">Sim</span>' + (c.transito ? '<div class="pp mut">' + fdata(c.transito) + '</div>' : '') : '<span class="chip">Não</span>') + '</td></tr>';
+  }).join('');
+  return '<div class="card tab-wrap cs-wrap"><table class="tab cs-tab"><thead><tr><th>#</th><th>Processo / devedor</th><th>Tribunal</th><th>Honorários – 1º grau</th><th>TJRS / 2º grau</th><th>STJ / STF</th><th>Base de cálculo</th><th>Alíquota / valor</th><th>Inversão</th><th>Situação</th><th>Trânsito em julgado</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+}
+document.head.insertAdjacentHTML('beforeend', '<style>.cs-wrap{max-height:none!important}.cs-tab th{padding:7px 9px;white-space:nowrap;font-size:12px}.cs-tab td{padding:5px 9px;vertical-align:top;font-size:12.5px;line-height:1.3}.cs-tab tr.clic{cursor:pointer}.cs-tab tr.clic:hover td{background:var(--surface-2)}.cs-tab .chip{min-height:20px;height:auto;padding:1px 8px;font-size:11.5px;line-height:1.3}.cs-tab .pp{margin-top:1px;font-size:11.5px}.cs-cl{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-width:105px;max-width:185px}.cs-proc{min-width:170px}.cs-proc .num{font-size:12px;white-space:nowrap}.cs-tab th:nth-child(n+4){white-space:normal;min-width:70px}.cs-wrap{overflow-x:auto}.cs-tab .cs-bt{height:22px;padding:0 8px;font-size:11.5px;margin-top:3px}</style>');
 function itemCumprimento(c) {
   const prox = c.situacao === 'AGUARDANDO_TRANSITO' ? ['A_EXECUTAR', 'Transitou'] : c.situacao === 'A_EXECUTAR' ? ['EM_EXECUCAO', 'Execução iniciada'] : c.situacao === 'EM_EXECUCAO' ? ['PAGO', 'Marcar pago'] : null;
   const tags = ['<span class="chip nav">' + logoT(c.tribunal) + esc(TRIB_CURTO[c.tribunal] || c.tribunal) + '</span>', '<span class="chip ' + (COR_CS[c.situacao] || '') + '">' + esc(SIT_CS[c.situacao] || c.situacao) + '</span>'];
@@ -1900,9 +1921,17 @@ function editarCumprimento(c) {
     '<label class="full">Devedor dos honorários<input class="inp" name="devedor" value="' + esc(c.devedor || '') + '"></label>' +
     '<label class="full">Classe / ação<input class="inp" name="classe" value="' + esc(c.classe || '') + '"></label>' +
     '<label class="full">Título (sentença/acórdão, evento)<input class="inp" name="titulo" value="' + esc(c.titulo || '') + '"></label>' +
-    '<label class="full">Honorários (percentual e base)<input class="inp" name="honorarios" value="' + esc(c.honorarios || '') + '"></label>' +
+    '<label class="full">Resumo dos honorários<input class="inp" name="honorarios" value="' + esc(c.honorarios || '') + '"></label>' +
+    '<div class="grupo full">Honorários devidos aos procuradores do Município, por instância</div>' +
+    '<label class="full">1º grau (sentença)<textarea class="inp" name="hon_1g" style="min-height:44px" placeholder="Ex.: 10% sobre o valor da causa, a favor do Município">' + esc(c.hon_1g || '') + '</textarea></label>' +
+    '<label class="full">TJRS / 2º grau (acórdão, majoração ou inversão)<textarea class="inp" name="hon_tj" style="min-height:44px">' + esc(c.hon_tj || '') + '</textarea></label>' +
+    '<label class="full">STJ / STF<textarea class="inp" name="hon_sup" style="min-height:44px">' + esc(c.hon_sup || '') + '</textarea></label>' +
+    '<label class="full">Base de cálculo<input class="inp" name="base_calculo" value="' + esc(c.base_calculo || '') + '" placeholder="Ex.: valor atualizado da causa / proveito econômico / valor da execução"></label>' +
+    '<label>Alíquota ou valor fixado<input class="inp" name="aliquota" value="' + esc(c.aliquota || '') + '" placeholder="Ex.: 10% ou R$ 1.000,00"></label>' +
     '<label>Valor estimado (R$)<input class="inp" name="valor" inputmode="decimal" value="' + esc(c.valor ? String(c.valor).replace('.', ',') : '') + '"></label>' +
-    '<label>Trânsito em julgado<input class="inp" type="date" name="transito" value="' + esc(c.transito || '') + '"></label>' +
+    '<label class="full">Inversão da sucumbência (a favor ou contra o Município)<textarea class="inp" name="inversao" style="min-height:44px">' + esc(c.inversao || '') + '</textarea></label>' +
+    '<label>Transitou em julgado?' + sel('transitado', { NAO: 'Não', SIM: 'Sim' }, c.transitado || (c.transito ? 'SIM' : 'NAO')) + '</label>' +
+    '<label>Data do trânsito<input class="inp" type="date" name="transito" value="' + esc(c.transito || '') + '"></label>' +
     '<label>Situação' + sel('situacao', SIT_CS, c.situacao || 'AGUARDANDO_TRANSITO') + '</label>' +
     '<label>Nº do cumprimento<input class="inp" name="processo_cumprimento" value="' + esc(c.processo_cumprimento || '') + '"></label>' +
     '<label class="full">Observações<textarea class="inp" name="observacoes" style="min-height:80px">' + esc(c.observacoes || '') + '</textarea></label></form>';
@@ -2117,7 +2146,7 @@ VIEWS.noticias = async function () {
 };
 // fundo com fotos (Início e Notícias) e listas compactas (Prazos, Prazos antigos, Tarefas, Memorandos)
 {
-  const COMPACTAS = ['prazos', 'antigos', 'ordens', 'tarefas', 'memorandos'];
+  const COMPACTAS = ['prazos', 'antigos', 'ordens', 'tarefas', 'memorandos', 'cumprimentos'];
   const FUNDO_V = { inicio: 'saguao', noticias: 'vista' };
   Object.keys(VIEWS).forEach((k) => {
     const f = VIEWS[k];
