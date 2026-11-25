@@ -240,7 +240,7 @@ function iniciarApp() {
     (mb ? '' : '<button class="fab" id="bvoz" title="Falar com o assistente" aria-label="Falar com o assistente">' + ic('mic') + '</button>');
   $('#bsair').onclick = () => sair(false);
   document.addEventListener('click', (e) => { const d = $('.tn-links[open]'); if (d && !d.contains(e.target)) d.removeAttribute('open'); });
-  if ($('#bvoz')) $('#bvoz').onclick = () => abrirAssistente(true);
+  if ($('#bvoz')) $('#bvoz').onclick = () => { desbloquearAudio(); abrirAssistente(true); };
   $('#batual').onclick = () => { S.cgRat = null; S.cgIng = null; S.cghsMensal = null; S.cghs = null; rota(true); };
   $('#btema').onclick = () => { aplicarTema(temaEfetivo() === 'escuro' ? 'claro' : 'escuro'); if (location.hash.startsWith('#/mais')) VIEWS.mais(); };
   iconeTema();
@@ -1205,7 +1205,12 @@ S.chat = [];
 S.falar = LS.get('falar', true);
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let reco = null, ouvindo = false;
-let audioVoz = null, audioUrl = null, falaSeq = 0;
+let audioVoz = null, audioUrl = null, falaSeq = 0, audioEl = null;
+// iPhone: o som só toca se o elemento de áudio for liberado num toque; liberamos no toque do microfone e reaproveitamos o mesmo elemento.
+function desbloquearAudio() {
+  try { if (!audioEl) { audioEl = new Audio(); audioEl.setAttribute('playsinline', ''); } audioEl.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='; const p = audioEl.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  try { if (window.speechSynthesis && !S.vozLiberada) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); S.vozLiberada = true; } } catch (e) {}
+}
 function calar() {
   falaSeq++;
   try { speechSynthesis.cancel(); } catch (e) {}
@@ -1221,7 +1226,7 @@ async function falar(txt) {
     if (!r.ok || !/audio/.test(tipo)) throw new Error('sem audio');
     const blob = await r.blob();
     if (seq !== falaSeq || !$('#assist')) return;
-    audioUrl = URL.createObjectURL(blob); audioVoz = new Audio(audioUrl);
+    audioUrl = URL.createObjectURL(blob); audioVoz = audioEl || new Audio(); audioVoz.src = audioUrl;
     await audioVoz.play();
   } catch (e) { if (seq === falaSeq && $('#assist')) falarNavegador(txt); }
 }
@@ -1239,19 +1244,19 @@ function abrirAssistente(iniciarOuvindo) {
   const fechar = () => { pararOuvir(); calar(); p.remove(); };
   p.addEventListener('click', (e) => { if (e.target === p || e.target.closest('[data-f]')) fechar(); });
   $('#afalar').onchange = (e) => { S.falar = e.target.checked; LS.set('falar', S.falar); if (!S.falar) calar(); };
-  $('#amic').onclick = () => (ouvindo ? pararOuvir() : ouvir());
+  $('#amic').onclick = () => { desbloquearAudio(); return ouvindo ? pararOuvir() : ouvir(); };
   const t = $('#atxt');
   t.oninput = () => { t.style.height = 'auto'; t.style.height = Math.min(140, t.scrollHeight) + 'px'; };
   t.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarComando(); } };
-  $('#aenv').onclick = () => enviarComando();
+  $('#aenv').onclick = () => { desbloquearAudio(); enviarComando(); };
   desenharChat();
   if (iniciarOuvindo && SR) ouvir(); else if (window.innerWidth > 760) t.focus();
 }
 function desenharChat() {
   const c = $('#achat'); if (!c) return;
   if (!S.chat.length) {
-    c.innerHTML = '<div class="dicas"><p class="mut pq">Exemplos do que você pode pedir:</p>' + ['O que vence esta semana?', 'No processo 5002388, manda memorando para a Fazenda com cópia da decisão e um resumo do processo.', 'No processo do Brocker, faz no MinutaIA uma impugnação com o prompt: …', 'Cria uma tarefa para revisar as contrarrazões na sexta.', 'Quando é a próxima sessão da Junta e quais processos meus estão pautados?']
-      .map((x) => '<button class="chip-dica">' + esc(x) + '</button>').join('') + '<p class="pp mut" style="margin-top:12px">Memorandos, minutas e documentos do eproc entram na fila de ordens e só são enviados depois da sua confirmação.</p></div>';
+    c.innerHTML = '<div class="dicas"><p class="mut pq">Exemplos do que você pode pedir:</p>' + ['O que vence esta semana?', 'Quanto o Dr. Gustavo Belmonte recebeu de honorários este ano?', 'Quantas peças protocolei em outubro, e quantas foram contestações?', 'Quanto está aguardando memorando no CGHS?', 'No processo 5002388, manda memorando para a Fazenda com cópia da decisão e um resumo do processo.', 'No processo do Brocker, faz no MinutaIA uma impugnação com o prompt: …', 'Cria uma tarefa para revisar as contrarrazões na sexta.', 'Quando é a próxima sessão da Junta e quais processos meus estão pautados?']
+      .map((x) => '<button class="chip-dica">' + esc(x) + '</button>').join('') + '<p class="pp mut" style="margin-top:12px">Pode perguntar qualquer informação do painel (prazos, antigos, memorandos, CGHS, Junta, audiências, cumprimentos, notícias); a resposta vem escrita e falada quando você pergunta pelo microfone. Memorandos, minutas e documentos do eproc entram na fila de ordens e só são enviados depois da sua confirmação.</p></div>';
     $$('.chip-dica', c).forEach((b) => { b.onclick = () => { const t = $('#atxt'); t.value = b.textContent.replace('…', ''); t.focus(); t.oninput(); }; });
     return;
   }
