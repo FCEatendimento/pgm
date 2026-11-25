@@ -1753,7 +1753,7 @@ function linhasTM() {
   const L = [];
   pz.filter((p) => aberto(p) && p.memo_status && p.memo_status !== 'NAO').forEach((p) => {
     const ret = p.memo_retorno || (p.fim ? addDias(p.fim, -7) : null);
-    const prox = p.memo_status === 'A_ENVIAR' ? ['ENVIADO', 'Marcar enviado'] : p.memo_status === 'ENVIADO' ? ['RESPONDIDO', 'Marcar respondido'] : null;
+    const prox = p.memo_status === 'A_ENVIAR' ? ['ENVIADO', '✓ Enviado'] : p.memo_status === 'ENVIADO' ? ['RESPONDIDO', '✓ Respondido'] : null;
     L.push({ cat: 'MEMO', obj: objetoMemo(p), p, destino: p.memo_secretaria || 'Secretaria não informada', sit: MEMO[p.memo_status], cls: { A_ENVIAR: 'bad', ENVIADO: 'warn', RESPONDIDO: 'ok' }[p.memo_status], pend: p.memo_status !== 'RESPONDIDO', data: ret, rotData: 'retorno', prazo: p.fim,
       attr: 'data-p="' + esc(p.id) + '"', bt: prox ? '<button class="btn sm tm-bt" data-ms="' + prox[0] + '" data-id="' + esc(p.id) + '">' + prox[1] + '</button>' : '' });
   });
@@ -1762,7 +1762,7 @@ function linhasTM() {
   });
   pz.filter((p) => aberto(p) && p.atend_status && p.atend_status !== 'NAO').forEach((p) => {
     L.push({ cat: 'ATEND', obj: 'Despachar protocolo administrativo (Atendenet)', p, destino: p.atend_protocolo || 'Protocolo não informado', sit: ATEND[p.atend_status], cls: p.atend_status === 'DESPACHADO' ? 'ok' : 'bad', pend: p.atend_status === 'A_DESPACHAR', data: p.fim, rotData: 'prazo', prazo: p.fim, attr: 'data-p="' + esc(p.id) + '"',
-      bt: p.atend_status === 'A_DESPACHAR' ? '<button class="btn sm tm-bt" data-as="DESPACHADO" data-id="' + esc(p.id) + '">Marcar despachado</button>' : '' });
+      bt: p.atend_status === 'A_DESPACHAR' ? '<button class="btn sm tm-bt" data-as="DESPACHADO" data-id="' + esc(p.id) + '">✓ Despachado</button>' : '' });
   });
   ordensLista().forEach((o) => {
     const c = catOrdem(o), p = porProc[o.processo] || {}, ab = ordemAberta(o), v = vencOrdem(o);
@@ -1789,24 +1789,26 @@ VIEWS.ordens = function () {
   const objs = {}; todos.filter((r) => passa(r, 'obj')).forEach((r) => { const k = r.obj.split(':')[0]; objs[k] = (objs[k] || 0) + 1; });
   const opt = (v, t, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(t) + '</option>';
   const nAEnv = todos.filter((r) => r.cat === 'MEMO' && r.p.memo_status === 'A_ENVIAR').length, nConf = ordensLista().filter((o) => o.status === 'AGUARDANDO_CONFIRMACAO').length;
+  const cel = (v, cls) => v ? '<td class="' + cls + '" title="' + esc(v) + '">' + esc(v) + '</td>' : '<td class="' + cls + ' mut">—</td>';
   const linhas = lista.map((r, i) => { const n = dias(r.data); return '<tr ' + r.attr + ' class="clic">' +
-    '<td class="nw mut">' + (i + 1) + '</td><td class="nw"><span class="chip ' + (r.cat === 'MEMO' ? 'nav' : r.cat === 'EMAIL' ? 'info' : r.cat === 'RPV' ? 'ouro' : '') + '">' + TM_CAT[r.cat] + '</span></td>' +
-    '<td class="tm-obj"><b>' + esc(r.obj) + '</b></td>' +
-    '<td class="tm-proc">' + (r.p.processo ? '<span class="num">' + esc(r.p.processo) + '</span>' : '<span class="mut">—</span>') + (r.p.parte ? '<div class="pp">' + esc(r.p.parte) + '</div>' : '') + (r.p.tribunal ? '<div><span class="chip nav">' + logoT(r.p.tribunal) + esc(TRIB_CURTO[r.p.tribunal] || r.p.tribunal) + '</span></div>' : '') + '</td>' +
-    '<td class="tm-cl">' + esc(r.p.classe || '—') + (r.p.providencia && r.cat !== 'TAREFA' ? '<div class="pp mut">' + esc(r.p.providencia) + '</div>' : '') + '</td>' +
-    '<td class="tm-dest">' + esc(r.destino || '—') + '</td>' +
-    '<td class="nw"><span class="chip ' + (r.cls || '') + '">' + esc(r.sit || '') + '</span>' + (r.bt ? '<div>' + r.bt + '</div>' : '') + '</td>' +
-    '<td class="nw">' + (r.data ? '<b>' + fdata(r.data) + '</b><div class="pp ' + (r.pend ? 'c-' + (urg(n) || 'n') : 'mut') + '">' + esc(r.rotData) + (r.pend && n !== null ? ' · ' + rel(n).replace('vence hoje', 'hoje') : '') + '</div>' : '<span class="mut">—</span>') + '</td>' +
-    '<td class="nw">' + (r.prazo ? fdata(r.prazo) : '<span class="mut">—</span>') + '</td></tr>'; }).join('');
+    '<td class="mut">' + (i + 1) + '</td><td><span class="chip ' + (r.cat === 'MEMO' ? 'nav' : r.cat === 'EMAIL' ? 'info' : r.cat === 'RPV' ? 'ouro' : '') + '">' + TM_CAT[r.cat] + '</span></td>' +
+    '<td class="tm-obj" title="' + esc(r.obj) + '"><b>' + esc(r.obj) + '</b></td>' +
+    '<td class="tm-proc">' + (r.p.processo ? '<span class="num">' + esc(r.p.processo) + '</span>' : '<span class="mut">—</span>') + (r.p.tribunal ? ' <span class="tm-tr">' + esc(TRIB_CURTO[r.p.tribunal] || r.p.tribunal) + '</span>' : '') + '</td>' +
+    cel(r.p.parte, 'tm-parte') +
+    '<td class="tm-cl" title="' + esc([r.p.classe, r.cat !== 'TAREFA' ? r.p.providencia : ''].filter(Boolean).join(' – ')) + '">' + esc(r.p.classe || '—') + '</td>' +
+    cel(r.destino, 'tm-dest') +
+    '<td class="tm-sit"><span class="chip ' + (r.cls || '') + '" title="' + esc(r.sit || '') + '">' + esc(r.sit || '') + '</span>' + (r.bt || '') + '</td>' +
+    '<td>' + (r.data ? '<b title="' + esc(r.rotData) + '">' + fdata(r.data) + '</b>' + (r.pend && n !== null ? ' <span class="c-' + (urg(n) || 'n') + '">' + rel(n).replace('vence hoje', 'hoje').replace('venceu há', 'atrasado') + '</span>' : '') : '<span class="mut">—</span>') + '</td>' +
+    '<td>' + (r.prazo ? fdata(r.prazo) : '<span class="mut">—</span>') + '</td></tr>'; }).join('');
   $('#conteudo').classList.toggle('largo', true);
   $('#conteudo').innerHTML = '<p class="mut pq" style="margin:14px 2px 0">Tudo o que depende de você fora das peças: memorandos às secretarias (por objeto), e-mails a responder, RPVs protocoladas a analisar, protocolos do Atendenet e as tarefas da fila do agente.' +
       (nAEnv ? ' <b style="color:var(--bad)">' + nAEnv + ' memorando(s) a enviar.</b>' : '') + (nConf ? ' <b style="color:var(--warn)">' + nConf + ' tarefa(s) aguardando sua confirmação.</b>' : '') + '</p>' +
     '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="qtm" placeholder="Buscar processo, parte, classe, secretaria…" value="' + esc(f.q || '') + '"></label></div>' +
-    '<div class="f-linha"><label class="f-nat">Situação<select class="sel" id="ftm-sit">' + opt('pend', 'Pendentes (' + conta('sit', (r) => r.pend) + ')', f.sit === 'pend') + opt('feitos', 'Concluídos (' + conta('sit', (r) => !r.pend) + ')', f.sit === 'feitos') + opt('todos', 'Todos (' + conta('sit', () => true) + ')', f.sit === 'todos') + '</select></label>' +
+    '<div class="f-linha tm-fl"><label class="f-nat">Situação<select class="sel" id="ftm-sit">' + opt('pend', 'Pendentes (' + conta('sit', (r) => r.pend) + ')', f.sit === 'pend') + opt('feitos', 'Concluídos (' + conta('sit', (r) => !r.pend) + ')', f.sit === 'feitos') + opt('todos', 'Todos (' + conta('sit', () => true) + ')', f.sit === 'todos') + '</select></label>' +
     '<label class="f-nat">Tipo<select class="sel" id="ftm-cat">' + opt('', 'Todos (' + conta('cat', () => true) + ')', !f.cat) + Object.keys(TM_CAT).map((k) => [k, conta('cat', (r) => r.cat === k)]).filter((x) => x[1] || f.cat === x[0]).map((x) => opt(x[0], TM_CAT[x[0]] + ' (' + x[1] + ')', f.cat === x[0])).join('') + '</select></label>' +
     '<label class="f-nat">Objeto<select class="sel" id="ftm-obj">' + opt('', 'Todos', !f.obj) + Object.keys(objs).sort((a, b) => objs[b] - objs[a]).map((k) => opt(k, k + ' (' + objs[k] + ')', f.obj === k)).join('') + '</select></label>' +
     '<button class="btn sm" id="tm-nova">' + ic('mais2', 's') + '<span>Nova tarefa</span></button>' + '</div>' +
-    (lista.length ? '<div class="card tab-wrap tm-wrap"><table class="tab tm-tab"><thead><tr><th>#</th><th>Tipo</th><th>Objeto</th><th>Processo / parte</th><th>Classe / providência</th><th>Secretaria / destino</th><th>Situação</th><th>Retorno / previsão</th><th>Prazo fatal</th></tr></thead><tbody>' + linhas + '</tbody></table></div>'
+    (lista.length ? '<div class="card tab-wrap tm-wrap"><table class="tab tm-tab"><thead><tr><th>#</th><th>Tipo</th><th>Objeto</th><th>Processo</th><th>Parte</th><th>Classe</th><th>Destino</th><th>Situação</th><th title="Retorno do memorando ou previsão da tarefa">Retorno</th><th>Prazo</th></tr></thead><tbody>' + linhas + '</tbody></table></div>'
       : '<div class="card">' + vazio('Nada com esses filtros.', 'fila') + '</div>') +
     '<p class="pp mut" style="margin:10px 2px">Memorandos, minutas e documentos do eproc da fila são executados pelo Claude no seu computador (diga “executar a fila da PGM”); nada é enviado sem a sua confirmação. Linhas de memorando abrem o prazo; linhas da fila abrem a tarefa.</p>';
   const salvar = () => { LS.set('ftm', f); VIEWS.ordens(); };
@@ -1822,7 +1824,7 @@ VIEWS.ordens = function () {
   ligarListas($('#conteudo'));
 };
 VIEWS.memorandos = function () { location.replace('#/ordens'); };
-document.head.insertAdjacentHTML('beforeend', '<style>.tm-wrap{max-height:none!important;overflow-x:auto}.tm-tab th{padding:7px 9px;font-size:12px;white-space:nowrap}.tm-tab td{padding:5px 9px;vertical-align:top;font-size:12.5px;line-height:1.3}.tm-tab tr.clic{cursor:pointer}.tm-tab tr.clic:hover td{background:var(--surface-2)}.tm-tab .chip{min-height:20px;height:auto;padding:1px 8px;font-size:11.5px;line-height:1.3}.tm-tab .pp{margin-top:1px;font-size:11.5px}.tm-obj{min-width:150px;max-width:220px}.tm-proc .chip{margin-top:3px}.tm-proc{min-width:170px;max-width:230px}.tm-proc .num{white-space:nowrap;font-size:12px}.tm-cl{min-width:140px;max-width:220px}.tm-cl .pp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.tm-dest{min-width:110px;max-width:170px}.tm-tab .tm-bt{height:22px;padding:0 8px;font-size:11.5px;margin-top:3px}.tm-tab .c-n{color:var(--mut)}#tm-nova{height:32px}</style>');
+document.head.insertAdjacentHTML('beforeend', '<style>.tm-fl{margin-top:10px!important}.tm-wrap{max-height:none!important;overflow-x:auto}.tm-tab th{padding:6px 6px;font-size:11.5px;white-space:nowrap}.tm-tab td{padding:2px 6px;height:28px;vertical-align:middle;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tm-tab tr.clic{cursor:pointer}.tm-tab tr.clic:hover td{background:var(--surface-2)}.tm-tab .chip{min-height:18px;height:18px;padding:0 7px;font-size:11px;line-height:18px}.tm-obj{max-width:175px}.tm-tab .tm-obj b{font-weight:600}.tm-proc .num{font-size:11.5px}.tm-tr{font-size:10.5px;font-weight:600;color:var(--mut);margin-left:3px}.tm-parte{max-width:130px}.tm-cl{max-width:125px}.tm-dest{max-width:110px}.tm-sit .chip{max-width:125px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}.tm-tab .tm-bt{height:20px;padding:0 7px;font-size:11px;margin:0 0 0 5px;vertical-align:middle}.tm-tab .c-n{color:var(--mut)}#tm-nova{height:32px}@media (max-width:760px){.tm-obj{max-width:170px}.tm-parte{max-width:130px}.tm-fl{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px!important}.tm-fl .f-nat{display:flex;flex-direction:column;align-items:stretch;gap:2px;font-size:11px;min-width:0}.tm-fl .sel{height:34px;font-size:13px;padding:0 24px 0 8px;width:100%;min-width:0}#tm-nova{display:none}}</style>');
 
 function verOrdem(o) {
   if (!o) return;
