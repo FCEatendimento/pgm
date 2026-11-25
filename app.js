@@ -359,7 +359,8 @@ VIEWS.inicio = function () {
 function destaques(h, ab) {
   const lp = procLiminar(), abComFim = ab.filter((p) => p.fim);
   const lim = new Set(ab.filter((p) => lp.has(p.processo)).map((p) => p.processo));
-  const limProx = ab.filter((p) => lp.has(p.processo) && p.fim && p.fim >= h).sort((a, b) => a.fim.localeCompare(b.fim))[0];
+  const limAb = ab.filter((p) => lp.has(p.processo)), qp = (f) => new Set(limAb.filter(f).map((p) => p.processo)).size;
+  const limMA = qp((p) => p.memo_status === 'A_ENVIAR'), limME = qp((p) => p.memo_status === 'ENVIADO'), limAtr = qp((p) => p.memo_status === 'ENVIADO' && p.memo_retorno && p.memo_retorno < h);
   const memA = ab.filter((p) => p.memo_status === 'A_ENVIAR'), memA15 = memA.filter((p) => p.fim && p.fim <= addDias(h, 15));
   const memE = ab.filter((p) => p.memo_status === 'ENVIADO'), memAtr = memE.filter((p) => p.memo_retorno && p.memo_retorno < h);
   const memHoje = memE.filter((p) => p.memo_retorno && p.memo_retorno >= h && p.memo_retorno <= addDias(h, 3));
@@ -373,9 +374,8 @@ function destaques(h, ab) {
   const cs = cumprimentos().filter((c) => c.situacao === 'A_EXECUTAR');
   const t = (rot, val, sub, i, cls, go, sit) => '<div class="card kpi ' + (cls || '') + '" data-go="' + go + '"' + (sit ? ' data-sit="' + sit + '"' : '') + ' title="' + esc(rot) + '"><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div><div class="ico">' + ic(i, 's') + '</div></div>';
   return '<div class="sec-tit">Destaques <span class="mut pq" style="font-weight:400;margin-left:6px">o que pede ação antecipada</span></div><div class="kpis dest">' +
-    t('Liminar deferida', lim.size, lim.size ? (limProx ? 'próx. prazo ' + fdata(limProx.fim) + ' · ' + esc(limProx.processo.slice(0, 7)) : 'processos com prazo aberto') : 'nenhum processo', 'alerta', lim.size ? 'bad' : '', 'liminar') +
+    t('Liminar deferida', lim.size, '<span class="ln">' + limMA + ' com memorando a enviar</span><span class="ln">' + limME + ' com memorando aguardando retorno' + (limAtr ? ' (' + limAtr + ' atrasado' + (limAtr > 1 ? 's' : '') + ')' : '') + '</span>', 'alerta', lim.size ? 'bad' : '', 'liminar') +
     t('Memorandos a enviar', memA.length, memA15.length + ' com prazo em até 15 dias', 'memo', memA15.length ? 'bad' : memA.length ? 'warn' : '', 'memoA') +
-    t('Aguardando retorno', memE.length, memAtr.length ? memAtr.length + ' com retorno atrasado' : memHoje.length ? memHoje.length + ' retornam em até 3 dias' : 'nenhum atrasado', 'memo', memAtr.length ? 'bad' : 'info', 'memoE') +
     t('Peças sem minuta', semMin.length, semMin5.length + ' vencem em até 5 dias · janela 15 dias', 'doc', semMin5.length ? 'bad' : semMin.length ? 'warn' : '', 'semminuta') +
     t('Defesas em aberto', def.length, def.length ? defSem.length + ' sem minuta (contestação, informações, impugnação)' : 'contestação, informações, impugnação', 'martelo', defSem.length ? 'warn' : '', 'defesa') +
     t('Ciência / CRP a dar', crp.length, 'prazos abertos sem peça – liberar logo', 'check', crp.length ? 'info' : '', 'crp') +
@@ -386,7 +386,7 @@ function destaques(h, ab) {
     t('Honorários a executar', cs.length, 'cumprimentos de sentença', 'martelo', cs.length ? 'info' : '', 'cumpr') +
     '</div>' + (lim.size ? '<div class="card" style="margin-top:12px"><div class="cab"><h2>Processos com liminar deferida</h2></div><div class="lista">' + ab.filter((p) => lp.has(p.processo)).sort((a, b) => String(a.fim || '9').localeCompare(String(b.fim || '9'))).map(itemPrazo).join('') + '</div></div>' : '');
 }
-document.head.insertAdjacentHTML('beforeend', '<style>.kpis.dest{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important}.kpis.dest .kpi .sub{white-space:normal;line-height:1.35}@media(max-width:760px){.kpis.dest{grid-template-columns:repeat(2,minmax(0,1fr))!important}}</style>');
+document.head.insertAdjacentHTML('beforeend', '<style>.kpis.dest{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important}.kpis.dest .kpi .sub{white-space:normal;line-height:1.35}.kpis.dest .kpi .sub .ln{display:block}@media(max-width:760px){.kpis.dest{grid-template-columns:repeat(2,minmax(0,1fr))!important}}</style>');
 VIEWS.prazos = function () { telaPrazos(false); };
 VIEWS.antigos = function () { telaPrazos(true); };
 const NATUREZAS = [
