@@ -337,20 +337,13 @@ VIEWS.inicio = function () {
   const hr = new Date().getHours();
   const kpi = (rot, val, sub, i, cls, go) => '<div class="card kpi ' + (cls || '') + '" data-go="' + go + '"><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div><div class="ico">' + ic(i, 's') + '</div></div>';
   $('#conteudo').innerHTML = '<div class="ola"><h2>' + (hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite') + (nome ? ', ' + esc(nome) : '') + '</h2><p>' + esc(new Date(dt(h).getTime() + 12 * 36e5).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })) + '</p></div>' +
-    '<div class="kpis">' +
-    kpi('Vencidos', atras.length, 'prazos em atraso', 'alerta', atras.length ? 'bad' : '', 'atrasados') +
+    '<div class="kpis k5">' +
     kpi('Vencem hoje', hj.length, fdata(h, true), 'hoje', hj.length ? 'bad' : '', 'hoje') +
     kpi('Próximos 7 dias', sem7.length, 'até ' + fdata(addDias(h, 7)), 'semana', 'warn', '7dias') +
     kpi('Prazos abertos', ab.length, 'a fazer ou em elaboração', 'lista', '', '') +
     kpi('Embargos de declaração', ed.length, 'cabíveis e no prazo', 'ed', 'info', 'ed') +
     kpi('Memorandos', memA.length + memE.length, memA.length + ' a enviar · ' + memE.length + ' aguardando' + (atA.length ? ' · ' + atA.length + ' Atendenet' : ''), 'memo', '', 'memo') +
     '</div>' + destaques(h, ab) +
-    '<div class="grid g2" style="margin-top:16px"><div class="card"><div class="cab"><h2>Próximos vencimentos</h2><div class="dir"><a class="btn fant sm" href="#/prazos">Ver todos</a></div></div><div class="lista" id="l1">' +
-    (abAt.slice(0, 8).map(itemPrazo).join('') || vazio('Nenhum prazo aberto.')) + '</div></div>' +
-    '<div class="card"><div class="cab"><h2>Lista de Tarefas</h2><div class="dir"><a class="btn fant sm" href="#/ordens">Ver todas</a></div></div><div class="lista" id="l2">' +
-    (ordensLista().filter(ordemAberta).slice(0, 7).map(itemOrdem).join('') || vazio('Nenhuma tarefa na lista.', 'fila')) + '</div></div></div>' +
-    '<div class="sec-tit">Junta de Recursos Fiscais <a class="btn fant sm" href="#/junta" style="margin-left:auto">Abrir</a></div>' + cardProxSessao() +
-    (() => { const l = jProc().filter(jrfAberto).slice(0, 5); return l.length ? '<div class="card" style="margin-top:12px"><div class="lista">' + l.map(itemJrf).join('') + '</div></div>' : ''; })() +
     '<div class="rodape-app">TJRS 1º e 2º graus · TRF4 1º e 2º graus · Junta de Recursos Fiscais</div>';
   $$('[data-go]').forEach((e) => { e.onclick = () => { const g = e.dataset.go; if (g === 'memo' || g === 'memoA' || g === 'memoE') { if (g !== 'memo') { S.fms = g === 'memoA' ? 'A_ENVIAR' : 'ENVIADO'; S.fmt = ''; LS.set('fmemo', { s: S.fms, t: '' }); } location.hash = '#/memorandos'; return; } if (g === 'aud') { S.fau = 'proximas'; location.hash = '#/audiencias'; return; } if (g === 'cumpr') { S.fc = 'A_EXECUTAR'; location.hash = '#/cumprimentos'; return; } if (g === 'aguard' || e.dataset.sit === 'pendentes') { Object.assign(S.f, { sit: 'pendentes', trib: '', marca: g === 'aguard' ? '' : g, nat: '', peca: '', de: '', ate: '', q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; return; } if (g === 'atrasados') { Object.assign(S.fa, { sit: 'abertos', trib: '', marca: '', q: '' }); LS.set('filtrosA', S.fa); location.hash = '#/antigos'; return; } Object.assign(S.f, { sit: 'abertos', trib: '', marca: g, q: '' }); LS.set('filtros', S.f); location.hash = '#/prazos'; }; });
   ligarListas($('#conteudo')); ligarJunta($('#conteudo'));
@@ -370,23 +363,28 @@ function destaques(h, ab) {
   const ag = ab.filter((p) => !p.fim), triar = ab.filter((p) => /^a triar/.test(PV(p)));
   const ed3 = ab.filter((p) => p.ed_cabivel && p.ed_prazo && p.ed_prazo >= h && p.ed_prazo <= addDias(h, 3));
   const rec = emRecessoJanela(h) ? abComFim.filter((p) => p.fim >= h && p.fim <= fimRecesso(h)) : [];
-  const aud = audiencias().filter((a) => a.situacao === 'AGENDADA' && a.data >= h && a.data <= addDias(h, 7));
-  const cs = cumprimentos().filter((c) => c.situacao === 'A_EXECUTAR');
+  const aud = audiencias().filter((a) => a.situacao === 'AGENDADA' && (!a.data || a.data >= h)), aud7 = aud.filter((a) => a.data && a.data <= addDias(h, 7));
+  const audProx = aud.filter((a) => a.data).sort((a, b) => String(a.data).localeCompare(String(b.data)))[0];
+  const csAt = cumprimentos().filter((c) => c.situacao === 'AGUARDANDO_TRANSITO'), csEx = cumprimentos().filter((c) => c.situacao === 'A_EXECUTAR');
+  const vSoma = (l) => l.reduce((x, c) => x + (Number(c.valor) || 0), 0), vSem = (l) => l.filter((c) => !(Number(c.valor) > 0)).length;
+  const vTxt = (l) => !l.length ? '' : vSoma(l) > 0 ? ' · ' + fmoeda(vSoma(l)) + (vSem(l) ? ' + ' + vSem(l) + ' sem valor' : '') : ' · valor não estimado';
+  const TRIBS = [['TJRS1', 'TJRS 1º grau'], ['TJRS2', 'TJRS 2º grau'], ['TRF41', 'TRF4 1º grau'], ['TRF42', 'TRF4 2º grau'], ['TJSC', 'TJSC']];
+  const porTrib = (l) => TRIBS.map((x) => '<span class="ln"><span>' + x[1] + '</span><b>' + l.filter((p) => p.tribunal === x[0]).length + '</b></span>').join('');
   const t = (rot, val, sub, i, cls, go, sit) => '<div class="card kpi ' + (cls || '') + '" data-go="' + go + '"' + (sit ? ' data-sit="' + sit + '"' : '') + ' title="' + esc(rot) + '"><div class="rot">' + rot + '</div><div class="val">' + val + '</div><div class="sub">' + sub + '</div><div class="ico">' + ic(i, 's') + '</div></div>';
   return '<div class="sec-tit">Destaques <span class="mut pq" style="font-weight:400;margin-left:6px">o que pede ação antecipada</span></div><div class="kpis dest">' +
     t('Liminar deferida', lim.size, '<span class="ln">' + limMA + ' com memorando a enviar</span><span class="ln">' + limME + ' com memorando aguardando retorno' + (limAtr ? ' (' + limAtr + ' atrasado' + (limAtr > 1 ? 's' : '') + ')' : '') + '</span>', 'alerta', lim.size ? 'bad' : '', 'liminar') +
     t('Memorandos a enviar', memA.length, memA15.length + ' com prazo em até 15 dias', 'memo', memA15.length ? 'bad' : memA.length ? 'warn' : '', 'memoA') +
-    t('Peças sem minuta', semMin.length, semMin5.length + ' vencem em até 5 dias · janela 15 dias', 'doc', semMin5.length ? 'bad' : semMin.length ? 'warn' : '', 'semminuta') +
+    t('Peças sem minuta', semMin.length, '<span class="ln">' + semMin5.length + ' vencem em até 5 dias · janela 15 dias</span>' + porTrib(semMin), 'doc', semMin5.length ? 'bad' : semMin.length ? 'warn' : '', 'semminuta') +
     t('Defesas em aberto', def.length, def.length ? defSem.length + ' sem minuta (contestação, informações, impugnação)' : 'contestação, informações, impugnação', 'martelo', defSem.length ? 'warn' : '', 'defesa') +
     t('Ciência / CRP a dar', crp.length, 'prazos abertos sem peça – liberar logo', 'check', crp.length ? 'info' : '', 'crp') +
     (ed3.length ? t('ED em até 3 dias', ed3.length, 'embargos de declaração vencendo', 'ed', 'bad', 'ed') : '') +
     (rec.length ? t('Até o recesso', rec.length, 'vencem até ' + fdata(fimRecesso(h)) + ' (recesso 20/12 a 20/01)', 'agenda', 'warn', 'recesso') : '') +
-    t('Aguardando abertura', ag.length, triar.length ? triar.length + ' ainda a triar' : 'intimações expedidas, sem prazo', 'hoje', triar.length ? 'warn' : '', 'aguard', 'pendentes') +
-    t('Audiências e perícias', aud.length, 'nos próximos 7 dias', 'agenda', aud.length ? 'warn' : '', 'aud') +
-    t('Honorários a executar', cs.length, 'cumprimentos de sentença', 'martelo', cs.length ? 'info' : '', 'cumpr') +
-    '</div>' + (lim.size ? '<div class="card" style="margin-top:12px"><div class="cab"><h2>Processos com liminar deferida</h2></div><div class="lista">' + ab.filter((p) => lp.has(p.processo)).sort((a, b) => String(a.fim || '9').localeCompare(String(b.fim || '9'))).map(itemPrazo).join('') + '</div></div>' : '');
+    t('Aguardando abertura', ag.length, '<span class="ln">' + (triar.length ? triar.length + ' ainda a triar' : 'intimações expedidas, sem prazo') + '</span>' + porTrib(ag), 'hoje', triar.length ? 'warn' : '', 'aguard', 'pendentes') +
+    t('Audiências e perícias', aud.length, aud.length ? 'agendadas · ' + aud7.length + ' nos próximos 7 dias' + (audProx ? ' · próxima ' + fdata(audProx.data) : '') : 'nenhuma agendada', 'agenda', aud7.length ? 'warn' : '', 'aud') +
+    t('Honorários a executar', csAt.length + csEx.length, '<span class="ln"><span>Aguardando trânsito em julgado</span><b>' + csAt.length + '</b></span><span class="ln"><span>Prontos para executar' + vTxt(csEx) + '</span><b>' + csEx.length + '</b></span>', 'martelo', csEx.length ? 'info' : '', 'cumpr') +
+    '</div>';
 }
-document.head.insertAdjacentHTML('beforeend', '<style>.kpis.dest{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important}.kpis.dest .kpi .sub{white-space:normal;line-height:1.35}.kpis.dest .kpi .sub .ln{display:block}@media(max-width:760px){.kpis.dest{grid-template-columns:repeat(2,minmax(0,1fr))!important}}</style>');
+document.head.insertAdjacentHTML('beforeend', '<style>.kpis.dest{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important}.kpis.dest .kpi .sub{white-space:normal;line-height:1.35}.kpis.dest .kpi .sub .ln{display:flex;justify-content:space-between;gap:8px}.kpis.dest .kpi .sub .ln b{color:var(--txt);font-weight:650}.kpis.k5{grid-template-columns:repeat(5,minmax(0,1fr))!important}@media(max-width:1100px){.kpis.k5{grid-template-columns:repeat(3,minmax(0,1fr))!important}}@media(max-width:760px){.kpis.k5{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:760px){.kpis.dest{grid-template-columns:repeat(2,minmax(0,1fr))!important}}</style>');
 VIEWS.prazos = function () { telaPrazos(false); };
 VIEWS.antigos = function () { telaPrazos(true); };
 const NATUREZAS = [
