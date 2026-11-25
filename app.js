@@ -214,10 +214,9 @@ const ROTAS = [
   { k: 'inicio', t: 'Início', ic: 'casa' },
   { k: 'prazos', t: 'Prazos', ic: 'prazo' },
   { k: 'antigos', t: 'Prazos antigos', tc: 'Antigos', tn: 'Prazos antigos', ic: 'arquivo', lat: true },
-  { k: 'ordens', t: 'Lista de Tarefas', tc: 'Tarefas', tn: 'Tarefas', ic: 'fila' },
-  { k: 'memorandos', t: 'Memorandos', tc: 'Memos', tn: 'Memorandos', ic: 'memo' },
+  { k: 'ordens', t: 'Tarefas e memorandos', tc: 'Tarefas', tn: 'Tarefas/Memos', ic: 'fila' },
   { k: 'junta', t: 'Junta de Recursos', tc: 'Junta', tn: 'Junta', ic: 'junta' },
-  { k: 'audiencias', t: 'Audiências e perícias', tc: 'Audiências', tn: 'Audiências', ic: 'agenda', lat: true },
+  { k: 'audiencias', t: 'Audiências/Perícias', tc: 'Aud./Perícias', tn: 'Audiências/Perícias', ic: 'agenda', lat: true },
   { k: 'cumprimentos', t: 'Cumprimentos de sentença', tc: 'Cumprimentos', tn: 'Cumprimentos', ic: 'martelo', lat: true },
   { k: 'cghs', t: 'CGHS – Honorários', tn: 'CGHS', ic: 'cghs', lat: true },
   { k: 'gestao', t: 'Gestão do trabalho', tn: 'Gestão', ic: 'grafico', lat: true }
@@ -259,7 +258,7 @@ function badges() {
   const jv = ((S.dados && S.dados.jrf && S.dados.jrf.processos) || []).filter((p) => !['JULGADO', 'ARQUIVADO'].includes(p.status) && p.prazo_voto && p.prazo_voto <= addDias(h, 3)).length;
   set('audiencias', audiencias().filter((a) => a.situacao === 'AGENDADA' && a.data >= h && a.data <= addDias(h, 7)).length, false);
   set('prazos', urg, true); set('antigos', venc, true); set('cumprimentos', cumprimentos().filter((c) => c.situacao === 'A_EXECUTAR').length, false); set('memorandos', mem, false); set('junta', jv, true);
-  set('ordens', ((S.dados && S.dados.ordens) || []).filter((o) => ['AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)).length, true);
+  set('ordens', ((S.dados && S.dados.ordens) || []).filter((o) => ['AGUARDANDO_CONFIRMACAO', 'ERRO'].includes(o.status)).length + mem, true);
 }
 let rodando = 0;
 async function rota(forcar) {
@@ -598,7 +597,7 @@ VIEWS.tarefas = function () {
   };
   ligarListas($('#conteudo'));
 };
-VIEWS.memorandos = function () {
+function memorandosAntigo() {
   titulo('Memorandos');
   const todos = prazos().filter((p) => aberto(p) && p.memo_status && p.memo_status !== 'NAO');
   const SF = { pendentes: ['Pendentes', (p) => p.memo_status !== 'RESPONDIDO'], A_ENVIAR: ['A enviar', (p) => p.memo_status === 'A_ENVIAR'], ENVIADO: ['Aguardando retorno', (p) => p.memo_status === 'ENVIADO'], RESPONDIDO: ['Respondidos', (p) => p.memo_status === 'RESPONDIDO'], todos: ['Todos', () => true] };
@@ -646,7 +645,7 @@ VIEWS.mais = function () {
   $('#conteudo').innerHTML = '<div class="card" style="margin-top:14px"><div class="lista"><div class="item"><div class="av">' + (fotoEu(eu) ? '<img src="' + esc(fotoEu(eu)) + '" alt="" referrerpolicy="no-referrer">' : '') + '</div><div class="mid"><div class="t">' + esc(eu.nome || '') + '</div><div class="d">' + esc(eu.email || '') + '</div></div></div>' +
     '<div class="item">' + ic(temaEfetivo() === 'escuro' ? 'lua' : 'sol') + '<div class="mid"><div class="t">Tema</div><div class="seg" style="margin-top:8px">' + [['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map((o) => '<button data-tema="' + o[0] + '" class="' + (tema === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div></div>' +
     '<a class="item clic" href="#/antigos">' + ic('arquivo') + '<div class="mid"><div class="t">Prazos antigos</div><div class="d">Prazos cujo dia do vencimento já terminou</div></div></a>' +
-    '<a class="item clic" href="#/audiencias">' + ic('agenda') + '<div class="mid"><div class="t">Audiências e perícias</div><div class="d">Audiências, perícias e sessões designadas</div></div></a>' +
+    '<a class="item clic" href="#/audiencias">' + ic('agenda') + '<div class="mid"><div class="t">Audiências/Perícias</div><div class="d">Audiências, perícias e sessões designadas</div></div></a>' +
     '<a class="item clic" href="#/cumprimentos">' + ic('martelo') + '<div class="mid"><div class="t">Cumprimentos de sentença</div><div class="d">Honorários sucumbenciais a executar pelo Município</div></div></a>' +
     '<a class="item clic" href="#/gestao">' + ic('grafico') + '<div class="mid"><div class="t">Gestão do trabalho</div><div class="d">Indicadores, metas, gráficos e honorários</div></div></a>' +
     '<a class="item clic" href="#/cghs">' + ic('cghs') + '<div class="mid"><div class="t">CGHS – Honorários</div><div class="d">Rateio mensal, comparativo e arquivos dos honorários</div></div></a>' +
@@ -1736,15 +1735,95 @@ VIEWS.cghs = function () {
     .catch((e) => { if (location.hash.startsWith('#/cghs') && !S.cghs) { $('#conteudo').innerHTML = seg + '<div class="card" style="margin-top:14px">' + vazio(e.message || 'Erro ao ler a pasta.', 'alerta') + '<div style="padding:0 16px 16px"><a class="btn sm" href="' + PASTA_CGHS + '" target="_blank" rel="noopener">' + ic('externo', 's') + '<span>Abrir pasta no Drive</span></a></div></div>'; ligar(); } })
     .finally(() => { VIEWS.cghs.lendo = false; });
 };
+// ---------- Tarefas e memorandos (aba unificada em 25/11/2026) ----------
+const OBJ_MEMO = { INFORMAR_EXTINCAO: 'Informar decisão que extingue ou reduz a cobrança', INFORMAR_DECISAO: 'Informar decisão judicial', DOCS_DEFESA: 'Solicitar documentos para a defesa', DADOS_COBRANCA: 'Solicitar dados para a cobrança', CONDENACAO: 'Condenação do Município (cálculo, RPV, precatório)', CUSTAS: 'Custas e despesas processuais', ACORDO: 'Acordo ou parcelamento', OUTRO: 'Outro pedido à secretaria' };
+function objetoMemo(p) {
+  const k = tipoMemo(p), t = nrm([p.providencia, p.teor, p.observacoes].join(' '));
+  if (LIM_RX([p.providencia, p.teor, p.intimacao, p.observacoes].join(' | ')) && !['CONDENACAO', 'CUSTAS', 'ACORDO'].includes(k)) return 'Informar liminar deferida';
+  if (k === 'CONDENACAO' && /(rpv|precatorio|calculo|confer|planilha|demonstrativo)/.test(t)) return 'Solicitar conferência de cálculo ao contador';
+  if (/(calculo|demonstrativo|planilha|atualizacao do debito|saldo remanescente)/.test(t) && ['DADOS_COBRANCA', 'OUTRO'].includes(k)) return 'Solicitar cálculo ao contador';
+  return OBJ_MEMO[k];
+}
+const TM_CAT = { MEMO: 'Memorando', EMAIL: 'E-mail', RPV: 'RPV', ATEND: 'Atendenet', TAREFA: 'Tarefa' };
+const catOrdem = (o) => { const t = nrm(o.titulo); if (/^(responder )?e-?mail/.test(t)) return 'EMAIL'; if (/\brpv\b|requisicao de pequeno valor|precatorio/.test(t)) return 'RPV'; return o.tipo === 'MEMORANDO' ? 'MEMO' : 'TAREFA'; };
+const vencOrdem = (o) => (o.dados && o.dados.vencimento) || (String(o.instrucoes || '').match(/Vencimento: (\d{2})\/(\d{2})\/(\d{4})/) || []).slice(1).reverse().join('-') || '';
+const RPV_RX = /\brpv\b|requisicao de pequeno valor|precatorio/;
+function linhasTM() {
+  const pz = prazos(), porProc = {}; pz.forEach((p) => { if (!porProc[p.processo] || aberto(p)) porProc[p.processo] = p; });
+  const L = [];
+  pz.filter((p) => aberto(p) && p.memo_status && p.memo_status !== 'NAO').forEach((p) => {
+    const ret = p.memo_retorno || (p.fim ? addDias(p.fim, -7) : null);
+    const prox = p.memo_status === 'A_ENVIAR' ? ['ENVIADO', 'Marcar enviado'] : p.memo_status === 'ENVIADO' ? ['RESPONDIDO', 'Marcar respondido'] : null;
+    L.push({ cat: 'MEMO', obj: objetoMemo(p), p, destino: p.memo_secretaria || 'Secretaria não informada', sit: MEMO[p.memo_status], cls: { A_ENVIAR: 'bad', ENVIADO: 'warn', RESPONDIDO: 'ok' }[p.memo_status], pend: p.memo_status !== 'RESPONDIDO', data: ret, rotData: 'retorno', prazo: p.fim,
+      attr: 'data-p="' + esc(p.id) + '"', bt: prox ? '<button class="btn sm tm-bt" data-ms="' + prox[0] + '" data-id="' + esc(p.id) + '">' + prox[1] + '</button>' : '' });
+  });
+  pz.filter((p) => aberto(p) && RPV_RX.test(nrm([p.providencia, p.teor].join(' ')))).forEach((p) => {
+    L.push({ cat: 'RPV', obj: 'Analisar RPV protocolada' + (/precatorio/.test(nrm(p.providencia + ' ' + p.teor)) ? ' / precatório' : ''), p, destino: 'Setor de cálculos / Fazenda', sit: STATUS[p.status], cls: p.status === 'EM_ELABORACAO' ? 'info' : 'warn', pend: true, data: p.fim, rotData: 'prazo', prazo: p.fim, attr: 'data-p="' + esc(p.id) + '"', bt: '' });
+  });
+  pz.filter((p) => aberto(p) && p.atend_status && p.atend_status !== 'NAO').forEach((p) => {
+    L.push({ cat: 'ATEND', obj: 'Despachar protocolo administrativo (Atendenet)', p, destino: p.atend_protocolo || 'Protocolo não informado', sit: ATEND[p.atend_status], cls: p.atend_status === 'DESPACHADO' ? 'ok' : 'bad', pend: p.atend_status === 'A_DESPACHAR', data: p.fim, rotData: 'prazo', prazo: p.fim, attr: 'data-p="' + esc(p.id) + '"',
+      bt: p.atend_status === 'A_DESPACHAR' ? '<button class="btn sm tm-bt" data-as="DESPACHADO" data-id="' + esc(p.id) + '">Marcar despachado</button>' : '' });
+  });
+  ordensLista().forEach((o) => {
+    const c = catOrdem(o), p = porProc[o.processo] || {}, ab = ordemAberta(o), v = vencOrdem(o);
+    const obj = c === 'EMAIL' ? 'Responder e-mail' : c === 'RPV' ? 'Analisar RPV protocolada' : c === 'MEMO' ? 'Memorando (fila do agente)' : o.tipo === 'MINUTAIA' ? 'Gerar minuta no MinutaIA' : o.tipo === 'EPROC_DOCUMENTO' ? 'Ler ou baixar documento no eproc' : 'Tarefa';
+    const det = String(o.titulo || '').replace(/^(Responder e-?mail|Analisar RPV protocolada|Memorando à [^–:]+|Minuta no MinutaIA|Documento no eproc|Tarefa|Ordem)\s*:?\s*/i, '').replace(/\s*–\s*\d{7}-\d{2}\.\S*$/, '').trim();
+    L.push({ cat: c, obj: obj + (det ? ': ' + det : ''),
+      p: Object.assign({}, p, { processo: o.processo || p.processo || '', parte: p.parte || (o.dados && o.dados.parte) || '' }), destino: (o.dados && o.dados.secretaria) || (c === 'EMAIL' ? 'E-mail' : ''), sit: OST[o.status], cls: o.status === 'AGUARDANDO_CONFIRMACAO' ? 'warn' : o.status === 'ERRO' ? 'bad' : o.status === 'CONCLUIDA' ? 'ok' : 'info',
+      pend: ab, data: v || (o.dados && o.dados.fim) || p.fim || '', rotData: v ? 'previsão' : 'prazo', prazo: (o.dados && o.dados.fim) || p.fim || '', attr: 'data-o="' + esc(o.id) + '"',
+      bt: ab && o.tipo === 'OUTRO' ? '<button class="btn sm tm-bt" data-oc="' + esc(o.id) + '">Concluir</button>' : '' });
+  });
+  return L;
+}
+S.ftm = S.ftm || LS.get('ftm', { sit: 'pend', cat: '', obj: '', q: '' });
 VIEWS.ordens = function () {
-  titulo('Lista de Tarefas');
-  const l = ordensLista();
-  const bloco = (tit, fn, vaz) => { const x = l.filter(fn); return x.length || vaz ? '<div class="sec-tit">' + tit + ' <span class="bdg">' + x.length + '</span></div><div class="card"><div class="lista">' + (x.map(itemOrdem).join('') || vazio(vaz || '', 'fila')) + '</div></div>' : ''; };
-  $('#conteudo').innerHTML = '<div class="card aviso" style="margin-top:14px"><div class="ico">' + ic('fila', 's') + '</div><div><b>Como a lista funciona</b><p>Memorandos, minutas do MinutaIA e documentos do eproc são executados pelo Claude no seu computador, com você presente para os logins. Para executar, abra o Claude no projeto "Procurador PGM" e diga <i>“executar a fila da PGM”</i>. Nada é enviado, peticionado ou protocolado sem a sua confirmação.</p></div></div>' +
-    bloco('Aguardando sua confirmação', (o) => o.status === 'AGUARDANDO_CONFIRMACAO') + bloco('Com erro', (o) => o.status === 'ERRO') + bloco('Em execução', (o) => o.status === 'EM_EXECUCAO') +
-    bloco('Na fila', (o) => o.status === 'NOVA', 'Nenhuma ordem na fila. Use o microfone para pedir.') + bloco('Concluídas e canceladas (30 dias)', (o) => ['CONCLUIDA', 'CANCELADA'].includes(o.status));
-  $$('[data-o]').forEach((e) => { e.onclick = () => verOrdem(ordensLista().find((o) => o.id === e.dataset.o)); });
+  titulo('Tarefas e memorandos');
+  const f = S.ftm;
+  if (S.fms === 'A_ENVIAR' || S.fms === 'ENVIADO') { f.cat = 'MEMO'; f.sit = 'pend'; S.fms = ''; }
+  const todos = linhasTM();
+  const q = nrm(f.q || '').trim();
+  const passa = (r, sem) => (sem === 'sit' || f.sit === 'todos' || (f.sit === 'pend' ? r.pend : !r.pend)) && (sem === 'cat' || !f.cat || r.cat === f.cat) && (sem === 'obj' || !f.obj || r.obj.split(':')[0] === f.obj) &&
+    (!q || nrm([r.obj, r.p.processo, r.p.parte, r.p.classe, r.destino, r.sit].join(' ')).includes(q));
+  const lista = todos.filter((r) => passa(r)).sort((a, b) => (b.pend - a.pend) || String(a.data || '9').localeCompare(String(b.data || '9')));
+  const conta = (sem, fn) => todos.filter((r) => passa(r, sem) && fn(r)).length;
+  const objs = {}; todos.filter((r) => passa(r, 'obj')).forEach((r) => { const k = r.obj.split(':')[0]; objs[k] = (objs[k] || 0) + 1; });
+  const opt = (v, t, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(t) + '</option>';
+  const nAEnv = todos.filter((r) => r.cat === 'MEMO' && r.p.memo_status === 'A_ENVIAR').length, nConf = ordensLista().filter((o) => o.status === 'AGUARDANDO_CONFIRMACAO').length;
+  const linhas = lista.map((r, i) => { const n = dias(r.data); return '<tr ' + r.attr + ' class="clic">' +
+    '<td class="nw mut">' + (i + 1) + '</td><td class="nw"><span class="chip ' + (r.cat === 'MEMO' ? 'nav' : r.cat === 'EMAIL' ? 'info' : r.cat === 'RPV' ? 'ouro' : '') + '">' + TM_CAT[r.cat] + '</span></td>' +
+    '<td class="tm-obj"><b>' + esc(r.obj) + '</b></td>' +
+    '<td class="tm-proc">' + (r.p.processo ? '<span class="num">' + esc(r.p.processo) + '</span>' : '<span class="mut">—</span>') + (r.p.parte ? '<div class="pp">' + esc(r.p.parte) + '</div>' : '') + (r.p.tribunal ? '<div><span class="chip nav">' + logoT(r.p.tribunal) + esc(TRIB_CURTO[r.p.tribunal] || r.p.tribunal) + '</span></div>' : '') + '</td>' +
+    '<td class="tm-cl">' + esc(r.p.classe || '—') + (r.p.providencia && r.cat !== 'TAREFA' ? '<div class="pp mut">' + esc(r.p.providencia) + '</div>' : '') + '</td>' +
+    '<td class="tm-dest">' + esc(r.destino || '—') + '</td>' +
+    '<td class="nw"><span class="chip ' + (r.cls || '') + '">' + esc(r.sit || '') + '</span>' + (r.bt ? '<div>' + r.bt + '</div>' : '') + '</td>' +
+    '<td class="nw">' + (r.data ? '<b>' + fdata(r.data) + '</b><div class="pp ' + (r.pend ? 'c-' + (urg(n) || 'n') : 'mut') + '">' + esc(r.rotData) + (r.pend && n !== null ? ' · ' + rel(n).replace('vence hoje', 'hoje') : '') + '</div>' : '<span class="mut">—</span>') + '</td>' +
+    '<td class="nw">' + (r.prazo ? fdata(r.prazo) : '<span class="mut">—</span>') + '</td></tr>'; }).join('');
+  $('#conteudo').classList.toggle('largo', true);
+  $('#conteudo').innerHTML = '<p class="mut pq" style="margin:14px 2px 0">Tudo o que depende de você fora das peças: memorandos às secretarias (por objeto), e-mails a responder, RPVs protocoladas a analisar, protocolos do Atendenet e as tarefas da fila do agente.' +
+      (nAEnv ? ' <b style="color:var(--bad)">' + nAEnv + ' memorando(s) a enviar.</b>' : '') + (nConf ? ' <b style="color:var(--warn)">' + nConf + ' tarefa(s) aguardando sua confirmação.</b>' : '') + '</p>' +
+    '<div class="barra"><label class="busca">' + ic('busca', 's') + '<input id="qtm" placeholder="Buscar processo, parte, classe, secretaria…" value="' + esc(f.q || '') + '"></label></div>' +
+    '<div class="f-linha"><label class="f-nat">Situação<select class="sel" id="ftm-sit">' + opt('pend', 'Pendentes (' + conta('sit', (r) => r.pend) + ')', f.sit === 'pend') + opt('feitos', 'Concluídos (' + conta('sit', (r) => !r.pend) + ')', f.sit === 'feitos') + opt('todos', 'Todos (' + conta('sit', () => true) + ')', f.sit === 'todos') + '</select></label>' +
+    '<label class="f-nat">Tipo<select class="sel" id="ftm-cat">' + opt('', 'Todos (' + conta('cat', () => true) + ')', !f.cat) + Object.keys(TM_CAT).map((k) => [k, conta('cat', (r) => r.cat === k)]).filter((x) => x[1] || f.cat === x[0]).map((x) => opt(x[0], TM_CAT[x[0]] + ' (' + x[1] + ')', f.cat === x[0])).join('') + '</select></label>' +
+    '<label class="f-nat">Objeto<select class="sel" id="ftm-obj">' + opt('', 'Todos', !f.obj) + Object.keys(objs).sort((a, b) => objs[b] - objs[a]).map((k) => opt(k, k + ' (' + objs[k] + ')', f.obj === k)).join('') + '</select></label>' +
+    '<button class="btn sm" id="tm-nova">' + ic('mais2', 's') + '<span>Nova tarefa</span></button>' + '</div>' +
+    (lista.length ? '<div class="card tab-wrap tm-wrap"><table class="tab tm-tab"><thead><tr><th>#</th><th>Tipo</th><th>Objeto</th><th>Processo / parte</th><th>Classe / providência</th><th>Secretaria / destino</th><th>Situação</th><th>Retorno / previsão</th><th>Prazo fatal</th></tr></thead><tbody>' + linhas + '</tbody></table></div>'
+      : '<div class="card">' + vazio('Nada com esses filtros.', 'fila') + '</div>') +
+    '<p class="pp mut" style="margin:10px 2px">Memorandos, minutas e documentos do eproc da fila são executados pelo Claude no seu computador (diga “executar a fila da PGM”); nada é enviado sem a sua confirmação. Linhas de memorando abrem o prazo; linhas da fila abrem a tarefa.</p>';
+  const salvar = () => { LS.set('ftm', f); VIEWS.ordens(); };
+  $('#ftm-sit').onchange = (e) => { f.sit = e.target.value; salvar(); };
+  $('#ftm-cat').onchange = (e) => { f.cat = e.target.value; f.obj = ''; salvar(); };
+  $('#ftm-obj').onchange = (e) => { f.obj = e.target.value; salvar(); };
+  $('#tm-nova').onclick = () => editarOrdem({ tipo: 'OUTRO' });
+  const qi = $('#qtm'); let tm; qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { f.q = qi.value; LS.set('ftm', f); const pos = qi.selectionStart; VIEWS.ordens(); const n2 = $('#qtm'); n2.focus(); n2.setSelectionRange(pos, pos); }, 250); };
+  $$('[data-ms]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); mudarMemo(b.dataset.id, b.dataset.ms); }; });
+  $$('[data-as]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); mudarAtend(b.dataset.id, b.dataset.as); }; });
+  $$('[data-oc]').forEach((b) => { b.onclick = async (e) => { e.stopPropagation(); b.disabled = true; try { const r = await api('ordem_concluir', { id: b.dataset.oc, status: 'CONCLUIDA' }); if (r) substituir(S.dados.ordens, r); redesenhar(); toast('Tarefa concluída.'); } catch (er) { b.disabled = false; toast(er.message, true); } }; });
+  $$('tr[data-o]').forEach((e) => { e.onclick = () => verOrdem(ordensLista().find((o) => o.id === e.dataset.o)); });
+  ligarListas($('#conteudo'));
 };
+VIEWS.memorandos = function () { location.replace('#/ordens'); };
+document.head.insertAdjacentHTML('beforeend', '<style>.tm-wrap{max-height:none!important;overflow-x:auto}.tm-tab th{padding:7px 9px;font-size:12px;white-space:nowrap}.tm-tab td{padding:5px 9px;vertical-align:top;font-size:12.5px;line-height:1.3}.tm-tab tr.clic{cursor:pointer}.tm-tab tr.clic:hover td{background:var(--surface-2)}.tm-tab .chip{min-height:20px;height:auto;padding:1px 8px;font-size:11.5px;line-height:1.3}.tm-tab .pp{margin-top:1px;font-size:11.5px}.tm-obj{min-width:150px;max-width:220px}.tm-proc .chip{margin-top:3px}.tm-proc{min-width:170px;max-width:230px}.tm-proc .num{white-space:nowrap;font-size:12px}.tm-cl{min-width:140px;max-width:220px}.tm-cl .pp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.tm-dest{min-width:110px;max-width:170px}.tm-tab .tm-bt{height:22px;padding:0 8px;font-size:11.5px;margin-top:3px}.tm-tab .c-n{color:var(--mut)}#tm-nova{height:32px}</style>');
+
 function verOrdem(o) {
   if (!o) return;
   const L = (r, v) => v ? '<dt>' + r + '</dt><dd>' + v + '</dd>' : '';
@@ -1764,16 +1843,22 @@ function editarOrdem(pre) {
   const memo = pre.tipo === 'MEMORANDO', minuta = pre.tipo === 'MINUTAIA';
   const corpo = '<form class="form" id="fo" autocomplete="off">' +
     '<label>Processo<input class="inp" name="processo" value="' + esc(pre.processo || '') + '"></label>' +
+    (!memo && !minuta ? '<label>Tipo de tarefa<select class="sel" name="cat"><option value="EMAIL">Responder e-mail</option><option value="RPV">Analisar RPV protocolada</option><option value="TAREFA" selected>Outra tarefa</option></select></label>' +
+      '<label class="full">Assunto (resumo)<input class="inp" name="assunto" placeholder="Ex.: e-mail da Fazenda sobre o cálculo; RPV de honorários de R$ 3.900,00"></label>' +
+      '<label>Previsão (data para fazer)<input class="inp" type="date" name="venc"></label>' : '') +
     (memo ? '<label>Secretaria<input class="inp" name="secretaria" list="secs2" value="' + esc(dd.secretaria || 'Fazenda') + '"><datalist id="secs2">' + SECRETARIAS.map((s) => '<option value="' + esc(s) + '">').join('') + '</datalist></label>' +
       '<label class="linha full"><input type="checkbox" name="anexar_decisao"' + (dd.anexar_decisao !== false ? ' checked' : '') + '> Anexar cópia da decisão (PDF do eproc)</label>' : '<span></span>') +
     (minuta ? '<label class="full">Prompt para o MinutaIA<textarea class="inp" name="prompt_minutaia" style="min-height:140px" placeholder="Ex.: elabore impugnação à exceção de pré-executividade sustentando…">' + esc(dd.prompt_minutaia || '') + '</textarea></label>' : '') +
     '<label class="full">' + (memo ? 'O que o memorando deve pedir (além do padrão)' : 'Instruções adicionais') + '<textarea class="inp" name="instrucoes" style="min-height:90px">' + esc(pre.instrucoes || '') + '</textarea></label></form>' +
-    '<p class="pp mut">A ordem vai para a fila e é executada pelo Claude no seu computador; nada é enviado sem a sua confirmação.</p>';
-  modal({ titulo: memo ? 'Pedir memorando' : minuta ? 'Pedir minuta no MinutaIA' : 'Nova tarefa', corpo, largo: true, botoes: [{ txt: 'Cancelar', valor: null }, { txt: 'Colocar na lista', cls: 'pri', ic: 'check', acao: async (v) => {
+    '<p class="pp mut">' + (memo || minuta ? 'A ordem vai para a fila e é executada pelo Claude no seu computador; nada é enviado sem a sua confirmação.' : 'A tarefa fica na aba Tarefas e memorandos até você marcar como concluída (e-mails e RPVs não são executados pela fila).') + '</p>';
+  modal({ titulo: memo ? 'Pedir memorando' : minuta ? 'Pedir minuta no MinutaIA' : 'Nova tarefa', corpo, largo: true, botoes: [{ txt: 'Cancelar', valor: null }, { txt: memo || minuta ? 'Colocar na fila' : 'Salvar tarefa', cls: 'pri', ic: 'check', acao: async (v) => {
     const f = $('#fo', v), d = Object.fromEntries(new FormData(f).entries());
     if (minuta && !String(d.prompt_minutaia || '').trim()) { toast('Escreva o prompt para o MinutaIA.', true); return false; }
+    if (!memo && !minuta && d.cat !== 'TAREFA') d.instrucoes = [d.instrucoes, 'Tarefa pessoal do Procurador – não executar pela fila.'].filter(Boolean).join('\n');
+    if (!memo && !minuta && d.venc) d.instrucoes = [d.instrucoes, 'Vencimento: ' + d.venc.split('-').reverse().join('/') + '.'].filter(Boolean).join('\n');
+    if (!memo && !minuta && !String(d.assunto || d.instrucoes || d.processo || '').trim()) { toast('Descreva a tarefa.', true); return false; }
     const ordem = { tipo: pre.tipo || 'OUTRO', processo: d.processo, prazo_id: pre.prazo_id || null, instrucoes: d.instrucoes,
-      titulo: (memo ? 'Memorando à ' + (d.secretaria || 'Fazenda') : minuta ? 'Minuta no MinutaIA' : 'Ordem') + (d.processo ? ' – ' + d.processo : ''),
+      titulo: (memo ? 'Memorando à ' + (d.secretaria || 'Fazenda') : minuta ? 'Minuta no MinutaIA' : (d.cat === 'EMAIL' ? 'Responder e-mail' : d.cat === 'RPV' ? 'Analisar RPV protocolada' : 'Tarefa') + (d.assunto ? ': ' + d.assunto : '')) + (d.processo ? ' – ' + d.processo : ''),
       dados: { secretaria: memo ? d.secretaria : null, anexar_decisao: memo ? !!(f.anexar_decisao && f.anexar_decisao.checked) : false, prompt_minutaia: minuta ? d.prompt_minutaia : null } };
     const r = await apiAg('ordem_criar', { ordem });
     S.dados.ordens = [r].concat(ordensLista());
@@ -1847,7 +1932,7 @@ const AUD_SIT = { AGENDADA: 'Agendada', REALIZADA: 'Realizada', REDESIGNADA: 'Re
 const AUD_MOD = { VIRTUAL: 'Virtual (videoconferência)', PRESENCIAL: 'Presencial', HIBRIDA: 'Híbrida' };
 const horaAud = (a) => (a.hora_ini ? a.hora_ini.slice(0, 5) : '') + (a.hora_fim ? '–' + a.hora_fim.slice(0, 5) : '');
 VIEWS.audiencias = function () {
-  titulo('Audiências e perícias');
+  titulo('Audiências/Perícias');
   if (!['proximas', 'passadas', 'todas'].includes(S.fau)) S.fau = 'proximas';
   const h = hoje();
   const todas = audiencias().slice().sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')) || String(a.hora_ini || '').localeCompare(String(b.hora_ini || '')));
