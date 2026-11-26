@@ -2157,7 +2157,17 @@ function layoutInicio(h, ab) {
     '<div class="hero-in"><div class="hero-cab"><span>Destaques</span><em>o que pede ação antecipada</em></div><div class="fases3d">' + destaques(h, ab) + '</div></div></section>' +
     '<section class="nt-bolha" id="secNt" aria-label="Notícias"><div class="nt-bolha-in"><div id="ntConteudo"><div class="nt-cab"><h2>' + ic('jornal', 's') + ' Notícias que afetam o seu trabalho</h2></div><div class="esq-nt"></div><div class="esq-nt"></div><div class="esq-nt"></div></div></div></section></div>';
 }
+// Destaques em 2 colunas por flexbox: o Safari/WebKit deixava de pintar cartões dentro de CSS columns (26/11/2026)
+function colunasDestaques() {
+  const f = $('.fases3d'); if (!f || f.classList.contains('col2')) return;
+  const cards = [...f.children]; if (cards.length < 2) return;
+  const alt = cards.map((c) => c.offsetHeight + 12), tot = alt.reduce((a, b) => a + b, 0);
+  const a = document.createElement('div'), b = document.createElement('div'); a.className = b.className = 'fcol';
+  let acc = 0; cards.forEach((c, i) => { (acc + alt[i] / 2 <= tot / 2 ? a : b).appendChild(c); acc += alt[i]; });
+  f.append(a, b); f.classList.add('col2');
+}
 function heroFotos() {
+  colunasDestaques();
   const hb = $$('.hero3d .hb'); if (!hb.length) return;
   let i = 0; hb[0].classList.add('on');
   clearInterval(S.heroT); S.heroT = setInterval(() => { if (!document.body.contains(hb[0])) return clearInterval(S.heroT); hb[i].classList.remove('on'); i = (i + 1) % hb.length; hb[i].classList.add('on'); }, 7000);
@@ -2254,7 +2264,7 @@ document.head.insertAdjacentHTML('beforeend', '<style>' +
   '.hero3d .hb{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(3px) saturate(1.1) brightness(.95);transform:scale(1.04);opacity:0;transition:opacity 1.6s ease;z-index:-2}.hero3d .hb.on{opacity:1}' +
   '.hero3d::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(14,16,20,.42),rgba(18,21,25,.66) 45%,rgba(18,21,25,.86)),radial-gradient(900px 300px at 85% 0,rgba(209,174,108,.22),transparent 70%)}' +
   '.hero3d .hero-in{padding:16px}.hero-cab{display:flex;align-items:baseline;gap:8px;margin:2px 4px 12px}.hero-cab span{font:700 18px var(--serif);color:#F2F2EE}.hero-cab em{font-style:normal;font-size:12.5px;color:#B9BEC6}' +
-  '.fases3d{columns:2;column-gap:12px}.fases3d .fase3d{break-inside:avoid;-webkit-column-break-inside:avoid;display:block;margin:0 0 12px}' +
+  '.fases3d{columns:2;column-gap:12px}.fases3d .fase3d{break-inside:avoid;-webkit-column-break-inside:avoid;display:block;margin:0 0 12px}.fases3d.col2{columns:auto;display:flex;gap:12px;align-items:flex-start}.fases3d.col2>.fcol{flex:1 1 0;min-width:0}' +
   '.fase3d{position:relative;border-radius:18px;padding:13px 13px 9px;color:#F2F2EE;cursor:pointer;min-width:0;background:linear-gradient(160deg,rgba(255,255,255,.13),rgba(255,255,255,.04) 42%,rgba(0,0,0,.18)),rgba(34,39,45,.62);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);box-shadow:0 1px 0 rgba(255,255,255,.22) inset,0 -1px 0 rgba(0,0,0,.35) inset,0 18px 36px -18px rgba(0,0,0,.8),0 4px 10px -4px rgba(0,0,0,.5);transition:transform .2s ease,box-shadow .2s ease}' +
   '.fase3d:hover{transform:translateY(-2px)}.fase3d::before{content:"";position:absolute;left:16px;right:16px;top:0;height:3px;border-radius:0 0 4px 4px;background:var(--fc);box-shadow:0 0 18px var(--fc)}' +
   '.fase3d .fh{display:flex;align-items:center;gap:8px}.fase3d .fh i{width:9px;height:9px;border-radius:50%;background:var(--fc);box-shadow:0 0 0 4px color-mix(in srgb,var(--fc) 22%,transparent);flex:none}' +
@@ -2293,8 +2303,8 @@ document.head.insertAdjacentHTML('beforeend', '<style>' +
   '.nx-mini{display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px;background:var(--surface);border-radius:12px;overflow:hidden;color:var(--txt);text-decoration:none}.nx-mini .nx-foto{aspect-ratio:4/3;height:100%}.nx-mini>span{display:grid;gap:3px;padding:8px 8px 8px 0}.nx-mini b{font-size:13.5px;line-height:1.3}.nx-mini:hover b{color:var(--gold)}' +
   '.nx-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}' +
   '@media (max-width:1100px){.ini2{grid-template-columns:minmax(0,1fr)}.nx-topo{grid-template-columns:minmax(0,1fr)}}' +
-  '@media (max-width:760px){.fases3d{column-gap:8px}.fases3d .fase3d{margin-bottom:8px}.fase3d .fn b{font-size:28px}.nt-lin{grid-template-columns:96px minmax(0,1fr);gap:10px}.nt-lin-t>b{font-size:13.5px}.nt-bolha-in{padding:12px}.hero3d .hero-in{padding:12px}}' +
-  '@media (max-width:480px){.fases3d{columns:1}}' +
+  '@media (max-width:760px){.fases3d{column-gap:8px}.fases3d.col2{gap:8px}.fases3d .fase3d{margin-bottom:8px}.fase3d .fn b{font-size:28px}.nt-lin{grid-template-columns:96px minmax(0,1fr);gap:10px}.nt-lin-t>b{font-size:13.5px}.nt-bolha-in{padding:12px}.hero3d .hero-in{padding:12px}}' +
+  '@media (max-width:480px){.fases3d{columns:1}.fases3d.col2{display:block}}' +
   // listas e tabelas compactas
   '.compacta .tab th{padding:7px 10px}.compacta .tab td{padding:4px 10px;line-height:1.25;font-size:13px}.compacta .tab td .pp{margin-top:0;font-size:11.5px}' +
   '.compacta .tab .chip{min-height:20px;height:auto;padding:1px 8px;font-size:11.5px;line-height:1.3}.compacta .tab td.xl{position:relative}.compacta .pr-cel{-webkit-line-clamp:1;min-width:200px}' +
